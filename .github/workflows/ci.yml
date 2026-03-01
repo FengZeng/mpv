@@ -1,0 +1,131 @@
+name: Build libmpv
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: libmpv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-build:
+    name: Build libmpv (${{ matrix.os }} / ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+            deployment_target: "14.0"
+          - os: macos-15-intel
+            arch: x86_64
+            deployment_target: "13.0"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show build environment
+        run: |
+          xcodebuild -version
+          echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
+
+      - name: Normalize Homebrew symlinks (idempotent)
+        run: |
+          set -euo pipefail
+          find /usr/local/bin -lname '*/Library/Frameworks/Python.framework/*' -delete -print || true
+          if brew list --formula python >/dev/null 2>&1; then
+            brew unlink python || true
+            brew link --overwrite python || true
+          fi
+          if brew list --formula pkg-config@0.29.2 >/dev/null 2>&1; then
+            brew unlink pkg-config@0.29.2 || true
+          fi
+          if brew list --formula pkg-config >/dev/null 2>&1; then
+            brew unlink pkg-config || true
+          fi
+
+      - name: Install brew dependencies
+        run: |
+          set -euo pipefail
+          brew update
+          FORMULAE=(
+            autoconf automake pkgconf libtool python freetype fribidi little-cms2
+            luajit libass ffmpeg meson rust uchardet mujs libplacebo molten-vk
+            vulkan-loader vulkan-headers libarchive libbluray libcaca
+            libcdio-paranoia libdvdnav rubberband zimg
+          )
+          MISSING=()
+          for f in "${FORMULAE[@]}"; do
+            if ! brew list --formula "$f" >/dev/null 2>&1; then
+              MISSING+=("$f")
+            fi
+          done
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            brew install -q "${MISSING[@]}"
+          fi
+
+          brew unlink pkg-config@0.29.2 >/dev/null 2>&1 || true
+          brew unlink pkg-config >/dev/null 2>&1 || true
+          brew link --overwrite pkgconf >/dev/null 2>&1 || true
+          brew link --overwrite ffmpeg >/dev/null 2>&1 || true
+
+      - name: Download mpv source code
+        run: bash ./download.sh
+
+      - name: Build mpv library
+        run: bash ./build-macos.sh
+
+      - name: Prepare artifacts
+        run: |
+          set -euo pipefail
+          REF_SAFE="${GITHUB_REF_NAME//\//-}"
+          MPV_TAG="$REF_SAFE"
+          RELEASE_REV="dev"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
+            MPV_TAG="${BASH_REMATCH[1]}"
+            RELEASE_REV="r${BASH_REMATCH[2]}"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            MPV_TAG="${BASH_REMATCH[1]}"
+            RELEASE_REV="r0"
+          fi
+          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-macos-${{ matrix.arch }}"
+          bash ./package-macos-runtime.sh \
+            --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
+            --out-dir "$GITHUB_WORKSPACE/release" \
+            --pkg-name "$PKG_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-macos-${{ github.run_id }}-${{ matrix.arch }}
+          path: |
+            libmpv-*.tar.gz
+            libmpv-*.tar.gz.sha256
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: macos-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/**/*.tar.gz
+            release-assets/**/*.tar.gz.sha256
+          generate_release_notes: true
