@@ -8,14 +8,15 @@ It is designed for GitHub Actions CI, and can also be run locally for testing.
 
 Each successful build generates a self-contained runtime package containing:
 
-- `libmpv` dylib
-- all non-system runtime dylib dependencies (recursive)
-- rewritten install names (`@rpath`) and runtime search path (`@loader_path`)
+- `libmpv` runtime library (`.dylib` on macOS, `.dll` on mingw64)
+- `libmpv` link libraries on mingw64 (`.lib`/`.a`/`.dll.a`, when generated)
+- all non-system runtime dynamic dependencies (recursive)
+- rewritten install names (`@rpath`) and runtime search path (`@loader_path`) on macOS
 - SHA256 checksum file
 
 This package is intended to run without requiring Homebrew on the target machine.
 
-## Local Build
+## Local Build (MacOS)
 
 Download source and build:
 
@@ -35,4 +36,19 @@ Build a local runtime package:
 
 ```bash
 bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos
+```
+
+## Local Build (mingw64 / MSYS2)
+
+Download source and build in `MSYS2 MINGW64` shell:
+
+```bash
+bash ./download.sh
+bash ./build-mingw64.sh
+```
+
+Build a local runtime package:
+
+```bash
+bash ./package-mingw64-runtime.sh --pkg-name libmpv-local-windows-mingw64-x86_64
 ```
