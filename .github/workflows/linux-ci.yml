@@ -1,0 +1,81 @@
+name: Build libmpv (Linux CI)
+
+on:
+  push:
+    branches: [ci]
+  pull_request:
+    branches: [ci]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-build:
+    name: Build libmpv (${{ matrix.runner }} / ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install apt dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git curl python3 meson ninja-build pkg-config patchelf \
+            libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
+            libass-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+            libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
+            librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev
+
+      - name: Show build environment
+        run: |
+          set -euo pipefail
+          uname -a
+          gcc --version
+          meson --version
+          pkg-config --version
+
+      - name: Download mpv source code
+        run: bash ./download.sh
+
+      - name: Build mpv library
+        run: bash ./build-linux.sh
+
+      - name: Prepare artifacts
+        run: |
+          set -euo pipefail
+          REF_SAFE="${GITHUB_REF_NAME//\//-}"
+          MPV_TAG="$REF_SAFE"
+          RELEASE_REV="dev"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
+            MPV_TAG="${BASH_REMATCH[1]}"
+            RELEASE_REV="r${BASH_REMATCH[2]}"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            MPV_TAG="${BASH_REMATCH[1]}"
+            RELEASE_REV="r0"
+          fi
+          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-linux-${{ matrix.arch }}"
+          bash ./package-linux-runtime.sh \
+            --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
+            --out-dir "$GITHUB_WORKSPACE/release" \
+            --pkg-name "$PKG_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-linux-ci-${{ github.run_id }}-${{ matrix.arch }}
+          path: |
+            libmpv-*.tar.gz
+            libmpv-*.tar.gz.sha256

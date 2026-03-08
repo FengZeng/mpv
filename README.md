@@ -8,7 +8,7 @@ It is designed for GitHub Actions CI, and can also be run locally for testing.
 
 Each successful build generates a self-contained runtime package containing:
 
-- `libmpv` runtime library (`.dylib` on macOS, `.dll` on mingw64)
+- `libmpv` runtime library (`.dylib` on macOS, `.dll` on mingw64, `.so` on Linux)
 - `libmpv` link libraries on mingw64 (`.lib`/`.a`/`.dll.a`, when generated)
 - all non-system runtime dynamic dependencies (recursive)
 - rewritten install names (`@rpath`) and runtime search path (`@loader_path`) on macOS
@@ -51,4 +51,31 @@ Build a local runtime package:
 
 ```bash
 bash ./package-mingw64-runtime.sh --pkg-name libmpv-local-windows-mingw64-x86_64
+```
+
+## Local Build (Linux)
+
+Install dependencies on Ubuntu/Debian (example):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential git curl python3 meson ninja-build pkg-config \
+  libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
+  libass-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+  libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
+  librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev patchelf
+```
+
+Download source and build:
+
+```bash
+bash ./download.sh
+bash ./build-linux.sh
+```
+
+Build a local runtime package:
+
+```bash
+bash ./package-linux-runtime.sh --pkg-name libmpv-local-linux
 ```
