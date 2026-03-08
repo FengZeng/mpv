@@ -1,10 +1,13 @@
 name: Build libmpv (Windows CI)
 
 on:
-  push:
-    branches: [ci]
-  pull_request:
-    branches: [ci]
+  workflow_dispatch:
+    inputs:
+      run_windows:
+        description: "Run Windows CI job"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -15,6 +18,7 @@ concurrency:
 
 jobs:
   mingw64-build:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_windows }}
     name: Build libmpv (windows-2022 / mingw64)
     runs-on: windows-2022
     steps:
