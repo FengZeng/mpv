@@ -14,7 +14,7 @@ Usage:
 
 Build a self-contained Linux runtime package:
   - libmpv shared libraries (.so*)
-  - all non-system shared library dependencies (recursive)
+  - all runtime shared library dependencies except core glibc/loader libs (recursive)
   - runtime search path rewritten to $ORIGIN (when patchelf is available)
   - SHA256 checksum
 USAGE
@@ -101,8 +101,17 @@ list_rpaths() {
 }
 
 is_system_dep_path() {
-  case "$1" in
-    /lib/*|/lib64/*|/usr/lib/*|/usr/lib64/*|/usr/lib/*-linux-gnu/*|/lib/*-linux-gnu/*)
+  case "$(basename "$1")" in
+    linux-vdso.so.1)
+      return 0
+      ;;
+    ld-linux-x86-64.so.2|ld-linux-aarch64.so.1|ld-linux.so.2)
+      return 0
+      ;;
+    libc.so.6|libm.so.6|libdl.so.2|libpthread.so.0|librt.so.1|libresolv.so.2)
+      return 0
+      ;;
+    libnsl.so.1|libutil.so.1|libcrypt.so.1)
       return 0
       ;;
     *)
@@ -187,16 +196,16 @@ scan_and_copy_deps() {
   while IFS= read -r dep; do
     [ -n "$dep" ] || continue
 
+    if is_system_dep_path "$dep"; then
+      continue
+    fi
+
     if ! resolved="$(resolve_dep "$owner" "$dep")"; then
       echo "Unresolved non-system dependency: $dep (owner: $owner)" >&2
       return 1
     fi
 
-    if is_system_dep_path "$resolved"; then
-      continue
-    fi
-
-    dep_name="$(basename "$resolved")"
+    dep_name="$(basename "$dep")"
     target="${LIB_DIR}/${dep_name}"
     if [ ! -e "$target" ]; then
       cp -vL "$resolved" "$target"
@@ -222,18 +231,19 @@ rewrite_rpath_if_possible() {
 }
 
 verify_deps_resolved() {
-  local file dep resolved
+  local file dep dep_name
 
   for file in "$LIB_DIR"/*.so*; do
     [ -e "$file" ] || continue
     while IFS= read -r dep; do
       [ -n "$dep" ] || continue
 
-      if [ -e "$LIB_DIR/$dep" ]; then
+      if is_system_dep_path "$dep"; then
         continue
       fi
 
-      if resolved="$(resolve_dep "$file" "$dep" 2>/dev/null)" && is_system_dep_path "$resolved"; then
+      dep_name="$(basename "$dep")"
+      if [ -e "$LIB_DIR/$dep_name" ]; then
         continue
       fi
 

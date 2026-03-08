@@ -11,6 +11,7 @@ Each successful build generates a self-contained runtime package containing:
 - `libmpv` runtime library (`.dylib` on macOS, `.dll` on mingw64, `.so` on Linux)
 - `libmpv` link libraries on mingw64 (`.lib`/`.a`/`.dll.a`, when generated)
 - all non-system runtime dynamic dependencies (recursive)
+- Linux package includes runtime dependencies recursively (excluding core glibc/loader libraries)
 - rewritten install names (`@rpath`) and runtime search path (`@loader_path`) on macOS
 - SHA256 checksum file
 
