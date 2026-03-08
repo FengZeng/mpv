@@ -62,7 +62,8 @@ sudo apt-get update
 sudo apt-get install -y \
   build-essential git curl python3 meson ninja-build pkg-config \
   libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
-  libass-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+  libass-dev libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
+  libswresample-dev libswscale-dev \
   libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
   librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev patchelf
 ```
