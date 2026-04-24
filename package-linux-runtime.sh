@@ -243,6 +243,20 @@ rewrite_rpath_if_possible() {
   done
 }
 
+strip_shared_libs_if_possible() {
+  local file
+  if ! command -v strip >/dev/null 2>&1; then
+    echo "Warning: strip not found; skip symbol stripping." >&2
+    return 0
+  fi
+
+  for file in "$LIB_DIR"/*.so*; do
+    [ -f "$file" ] || continue
+    [ -L "$file" ] && continue
+    strip --strip-unneeded "$file" 2>/dev/null || strip "$file" || true
+  done
+}
+
 verify_deps_resolved() {
   local file dep dep_name
 
@@ -329,6 +343,7 @@ done
 
 if [ -n "${CI:-}" ]; then
   rewrite_rpath_if_possible
+  strip_shared_libs_if_possible
   verify_deps_resolved
 
   tar -czf "${PKG_NAME}.tar.gz" -C "$OUT_DIR" .

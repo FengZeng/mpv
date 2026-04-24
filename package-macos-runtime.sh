@@ -76,6 +76,30 @@ BREW_LIB_DIR=""
 if [ -n "$BREW_PREFIX" ]; then
   BREW_LIB_DIR="${BREW_PREFIX}/lib"
 fi
+VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
+VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-}"
+if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
+  case "${MPV_TARGET_ARCH:-$(uname -m)}" in
+    arm64)
+      [ -d "$VCPKG_INSTALLED_DIR/arm64-osx-mp" ] && VCPKG_TARGET_TRIPLET="arm64-osx-mp" || VCPKG_TARGET_TRIPLET="arm64-osx"
+      ;;
+    x86_64)
+      [ -d "$VCPKG_INSTALLED_DIR/x64-osx-mp" ] && VCPKG_TARGET_TRIPLET="x64-osx-mp" || VCPKG_TARGET_TRIPLET="x64-osx"
+      ;;
+  esac
+fi
+VCPKG_LIB_DIR=""
+if [ -n "$VCPKG_TARGET_TRIPLET" ] && [ -d "$VCPKG_INSTALLED_DIR/$VCPKG_TARGET_TRIPLET/lib" ]; then
+  VCPKG_LIB_DIR="$VCPKG_INSTALLED_DIR/$VCPKG_TARGET_TRIPLET/lib"
+fi
+TARGET_ARCH="${MPV_TARGET_ARCH:-$(uname -m)}"
+case "$TARGET_ARCH" in
+  arm64|x86_64) ;;
+  *)
+    echo "Unsupported target architecture: $TARGET_ARCH" >&2
+    exit 1
+    ;;
+esac
 
 TMP_DIR="$(mktemp -d)"
 VISITED_FILE="${TMP_DIR}/visited.txt"
@@ -88,6 +112,13 @@ already_visited() {
 
 mark_visited() {
   printf '%s\n' "$1" >> "$VISITED_FILE"
+}
+
+is_target_arch_dylib() {
+  local file="$1"
+  local archs
+  archs="$(lipo -archs "$file" 2>/dev/null || true)"
+  [ -n "$archs" ] && printf '%s\n' "$archs" | tr ' ' '\n' | grep -Fxq "$TARGET_ARCH"
 }
 
 is_system_dep() {
@@ -134,7 +165,7 @@ resolve_dep() {
       ;;
   esac
 
-  for search_dir in "$owner_dir" "$LIB_DIR" "$BUILD_DIR" "$BREW_LIB_DIR" /opt/homebrew/lib /usr/local/lib; do
+  for search_dir in "$owner_dir" "$LIB_DIR" "$BUILD_DIR" "$VCPKG_LIB_DIR" "$BREW_LIB_DIR" /opt/homebrew/lib /usr/local/lib; do
     [ -n "$search_dir" ] || continue
     candidate="${search_dir}/$(basename "$dep")"
     [ -e "$candidate" ] && { echo "$candidate"; return 0; }
@@ -166,6 +197,18 @@ scan_and_copy_deps() {
     fi
 
     dep_name="$(basename "$resolved")"
+    if [[ "$dep_name" =~ ^libvulkan\.1\.[0-9].*\.dylib$ ]]; then
+      dep_name="libvulkan.1.dylib"
+      if [ -e "$VCPKG_LIB_DIR/$dep_name" ]; then
+        resolved="$VCPKG_LIB_DIR/$dep_name"
+      fi
+    fi
+    if [[ "$dep_name" =~ ^libplacebo\.[0-9].*\.dylib$ ]]; then
+      dep_name="libplacebo.dylib"
+      if [ -e "$VCPKG_LIB_DIR/$dep_name" ]; then
+        resolved="$VCPKG_LIB_DIR/$dep_name"
+      fi
+    fi
     target="${LIB_DIR}/${dep_name}"
     if [ ! -e "$target" ]; then
       cp -vL "$resolved" "$target"
@@ -179,7 +222,8 @@ scan_and_copy_deps() {
 rewrite_install_names() {
   local file dep dep_name
 
-  for file in "$LIB_DIR"/*; do
+  shopt -s nullglob
+  for file in "$LIB_DIR"/*.dylib "$LIB_DIR"/*.so; do
     [ -f "$file" ] || continue
     chmod u+w "$file" || true
 
@@ -191,6 +235,18 @@ rewrite_install_names() {
 
     while IFS= read -r dep; do
       [ -n "$dep" ] || continue
+
+      # Normalize Vulkan dependency to SONAME form, so runtime can dlopen
+      # a stable name (libvulkan.1.dylib) instead of a full versioned file.
+      if [[ "$dep" =~ (^|/)libvulkan\.1\.[0-9].*\.dylib$ ]] && [ -e "$LIB_DIR/libvulkan.1.dylib" ]; then
+        install_name_tool -change "$dep" "@rpath/libvulkan.1.dylib" "$file" || true
+        continue
+      fi
+      if [[ "$dep" =~ (^|/)libplacebo\.[0-9].*\.dylib$ ]] && [ -e "$LIB_DIR/libplacebo.dylib" ]; then
+        install_name_tool -change "$dep" "@rpath/libplacebo.dylib" "$file" || true
+        continue
+      fi
+
       dep_name="$(basename "$dep")"
       if [ -e "$LIB_DIR/$dep_name" ]; then
         install_name_tool -change "$dep" "@rpath/$dep_name" "$file" || true
@@ -206,7 +262,8 @@ rewrite_install_names() {
 verify_no_absolute_non_system_refs() {
   local file dep dep_name
 
-  for file in "$LIB_DIR"/*; do
+  shopt -s nullglob
+  for file in "$LIB_DIR"/*.dylib "$LIB_DIR"/*.so; do
     [ -f "$file" ] || continue
     while IFS= read -r dep; do
       [ -n "$dep" ] || continue
@@ -247,24 +304,23 @@ copy_root_mpv_libs() {
 }
 
 copy_soia_utils_lib() {
-  local arch triple src
-  arch="$(uname -m)"
-  case "$arch" in
+  local triple src
+  case "$TARGET_ARCH" in
     arm64)
       triple="aarch64-apple-darwin"
       ;;
     x86_64)
       triple="x86_64-apple-darwin"
       ;;
-    *)
-      echo "Unsupported macOS architecture for soia_utils: $arch" >&2
-      exit 1
-      ;;
   esac
 
   src="${SOIA_UTILS_DIR}/${triple}/libsoia_utils.dylib"
   if [ ! -f "$src" ]; then
     echo "soia_utils dylib not found for ${triple}: $src" >&2
+    exit 1
+  fi
+  if ! is_target_arch_dylib "$src"; then
+    echo "soia_utils dylib arch mismatch for target ${TARGET_ARCH}: $src" >&2
     exit 1
   fi
 
@@ -276,16 +332,11 @@ copy_moltenvk_runtime() {
   local -a lib_candidates icd_candidates
 
   moltenvk_lib_src=""
-  for owner in "$LIB_DIR"/libmpv*.dylib "$LIB_DIR"/libsoia_utils*.dylib; do
-    [ -e "$owner" ] || continue
-    if moltenvk_lib_src="$(resolve_dep "$owner" "libMoltenVK.dylib" 2>/dev/null || true)"; then
-      [ -n "$moltenvk_lib_src" ] && break
-    fi
-  done
 
   lib_candidates=(
-    "$BUILD_DIR/libMoltenVK.dylib"
-    "$BUILD_DIR/lib/libMoltenVK.dylib"
+    "${MOLTENVK_LIB_PATH:-}"
+    "$PROJECT_ROOT/vendor/MoltenVK/Build/Release/libMoltenVK.dylib"
+    "$PROJECT_ROOT/vendor/MoltenVK/Package/Release/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib"
     "${BREW_PREFIX}/opt/molten-vk/lib/libMoltenVK.dylib"
     "/opt/homebrew/opt/molten-vk/lib/libMoltenVK.dylib"
     "/usr/local/opt/molten-vk/lib/libMoltenVK.dylib"
@@ -294,24 +345,47 @@ copy_moltenvk_runtime() {
     for candidate in "${lib_candidates[@]}"; do
       [ -n "$candidate" ] || continue
       if [ -f "$candidate" ] || [ -L "$candidate" ]; then
+        if ! is_target_arch_dylib "$candidate"; then
+          continue
+        fi
         moltenvk_lib_src="$candidate"
         break
       fi
     done
   fi
 
+  # Fallback: resolve from already-copied binaries when local build output is absent.
+  if [ -z "$moltenvk_lib_src" ]; then
+    for owner in "$LIB_DIR"/libmpv*.dylib "$LIB_DIR"/libsoia_utils*.dylib; do
+      [ -e "$owner" ] || continue
+      if moltenvk_lib_src="$(resolve_dep "$owner" "libMoltenVK.dylib" 2>/dev/null || true)"; then
+        [ -n "$moltenvk_lib_src" ] && break
+      fi
+    done
+  fi
+
   if [ -z "$moltenvk_lib_src" ] && [ -n "$BREW_PREFIX" ] && [ -d "${BREW_PREFIX}/Cellar/molten-vk" ]; then
-    moltenvk_lib_src="$(find "${BREW_PREFIX}/Cellar/molten-vk" -type f -name 'libMoltenVK.dylib' -print -quit 2>/dev/null || true)"
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      if is_target_arch_dylib "$candidate"; then
+        moltenvk_lib_src="$candidate"
+        break
+      fi
+    done < <(find "${BREW_PREFIX}/Cellar/molten-vk" -type f -name 'libMoltenVK.dylib' -print 2>/dev/null || true)
   fi
 
   if [ -n "$moltenvk_lib_src" ]; then
     cp -vL "$moltenvk_lib_src" "$LIB_DIR/"
   else
-    echo "Warning: libMoltenVK.dylib not found in known runtime paths" >&2
+    echo "Warning: libMoltenVK.dylib not found for target arch ${TARGET_ARCH} in known runtime paths" >&2
   fi
 
   moltenvk_icd_src=""
-  if [ -n "$moltenvk_lib_src" ]; then
+  if [ -n "${MOLTENVK_ICD_PATH:-}" ] && [ -f "${MOLTENVK_ICD_PATH}" ]; then
+    moltenvk_icd_src="${MOLTENVK_ICD_PATH}"
+  fi
+
+  if [ -z "$moltenvk_icd_src" ] && [ -n "$moltenvk_lib_src" ]; then
     lib_parent="$(cd "$(dirname "$moltenvk_lib_src")/.." && pwd)"
     icd_candidates=(
       "$lib_parent/etc/vulkan/icd.d/MoltenVK_icd.json"
@@ -327,8 +401,8 @@ copy_moltenvk_runtime() {
 
   if [ -z "$moltenvk_icd_src" ]; then
     icd_candidates=(
-      "$BUILD_DIR/MoltenVK_icd.json"
-      "$BUILD_DIR/etc/vulkan/icd.d/MoltenVK_icd.json"
+      "$PROJECT_ROOT/vendor/MoltenVK/Package/Release/MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json"
+      "$PROJECT_ROOT/vendor/MoltenVK/Build/Release/MoltenVK_icd.json"
       "${BREW_PREFIX}/opt/molten-vk/etc/vulkan/icd.d/MoltenVK_icd.json"
       "${BREW_PREFIX}/opt/molten-vk/share/vulkan/icd.d/MoltenVK_icd.json"
       "/opt/homebrew/opt/molten-vk/etc/vulkan/icd.d/MoltenVK_icd.json"
@@ -379,13 +453,11 @@ for file in "$LIB_DIR"/libmpv*.dylib "$LIB_DIR"/libsoia_utils*.dylib; do
   scan_and_copy_deps "$file"
 done
 
-if [ -n "${CI:-}" ]; then
-  rewrite_install_names
-  verify_no_absolute_non_system_refs
+rewrite_install_names
+verify_no_absolute_non_system_refs
 
-  tar -czf "${PKG_NAME}.tar.gz" -C "$OUT_DIR" .
-  shasum -a 256 "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+tar -czf "${PKG_NAME}.tar.gz" -C "$OUT_DIR" .
+shasum -a 256 "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
 
-  echo "Created package: ${PKG_NAME}.tar.gz"
-  echo "Created checksum: ${PKG_NAME}.tar.gz.sha256"
-fi
+echo "Created package: ${PKG_NAME}.tar.gz"
+echo "Created checksum: ${PKG_NAME}.tar.gz.sha256"
