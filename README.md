@@ -8,9 +8,9 @@ It is designed for GitHub Actions CI, and can also be run locally for testing.
 
 Each successful build generates a self-contained runtime package containing:
 
-- `libmpv` runtime library (`.dylib` on macOS, `.dll` on mingw64, `.so` on Linux)
+- `libmpv` runtime library (`.dylib` on macOS, `.dll` on Windows, `.so` on Linux)
 - `soia_utils` runtime library for the current target platform
-- `libmpv` link libraries on mingw64 (`.lib`/`.a`/`.dll.a`, when generated)
+- `libmpv` link libraries on Windows (`.lib`, when generated)
 - all non-system runtime dynamic dependencies (recursive)
 - Linux package includes runtime dependencies recursively (excluding core glibc/loader libraries)
 - rewritten install names (`@rpath`) and runtime search path (`@loader_path`) on macOS
@@ -40,37 +40,69 @@ Build a local runtime package:
 bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos
 ```
 
-## Local Build (mingw64 / MSYS2)
+## Local Build (MSVC / PowerShell)
 
-Install toolchain in `MSYS2 MINGW64` shell (one-time):
-
-```bash
-pacman -S --needed --noconfirm \
-  base-devel git curl \
-  mingw-w64-x86_64-toolchain \
-  mingw-w64-x86_64-meson mingw-w64-x86_64-ninja \
-  mingw-w64-x86_64-pkgconf mingw-w64-x86_64-python
-```
+Install Visual Studio Build Tools (Desktop development with C++) and make sure
+`meson` + `ninja` are available in `PATH`.
 
 Then bootstrap vcpkg, install dependencies, and build:
+
+```powershell
+bash ./download.sh
+powershell -ExecutionPolicy Bypass -File .\install-vcpkg-deps-msvc.ps1
+powershell -ExecutionPolicy Bypass -File .\build-msvc.ps1
+```
+
+## GitHub CI (windows-2022, MSVC)
+
+Recommended CI steps (PowerShell):
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive
+
+- name: Setup Python
+  uses: actions/setup-python@v5
+  with:
+    python-version: "3.11"
+
+- name: Install meson + ninja
+  shell: pwsh
+  run: |
+    python -m pip install --upgrade pip
+    python -m pip install meson ninja
+
+- name: Download mpv source
+  shell: bash
+  run: |
+    bash ./download.sh
+
+- name: Install vcpkg deps (MSVC triplet)
+  shell: pwsh
+  run: |
+    ./install-vcpkg-deps-msvc.ps1
+
+- name: Build libmpv (MSVC)
+  shell: pwsh
+  run: |
+    ./build-msvc.ps1
+```
+
+Or from bash/MSYS shell:
 
 ```bash
 bash ./download.sh
 bash ./install-vcpkg-deps.sh
-bash ./build-mingw64.sh
+bash ./build-msvc.sh
 ```
 
 Optional: tune minimum Windows target API level (default is `0x0601`, Windows 7):
 
-```bash
-MPV_WIN32_WINNT=0x0603 bash ./install-vcpkg-deps.sh
-MPV_WIN32_WINNT=0x0603 bash ./build-mingw64.sh
-```
-
-Build a local runtime package:
-
-```bash
-bash ./package-mingw64-runtime.sh --pkg-name libmpv-local-windows-mingw64-x86_64
+```powershell
+$env:MPV_WIN32_WINNT='0x0603'
+powershell -ExecutionPolicy Bypass -File .\install-vcpkg-deps-msvc.ps1
+powershell -ExecutionPolicy Bypass -File .\build-msvc.ps1
 ```
 
 ## Local Build (Linux)
