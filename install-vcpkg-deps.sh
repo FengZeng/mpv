@@ -8,6 +8,7 @@ VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
 VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-}"
 OVERLAY_TRIPLETS_DIR="$PROJECT_ROOT/vcpkg-triplets"
 OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports"
+VCPKG_BIN=""
 
 resolve_triplet_file() {
     local triplet="$1"
@@ -45,7 +46,7 @@ if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
         MINGW*|MSYS*|CYGWIN*)
             case "$(uname -m)" in
                 x86_64)
-                    VCPKG_TARGET_TRIPLET="x64-mingw-mp"
+                    VCPKG_TARGET_TRIPLET="x64-windows-mp"
                     ;;
                 *)
                     echo "Unsupported host architecture for default Windows triplet: $(uname -m)" >&2
@@ -61,8 +62,12 @@ if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
     esac
 fi
 
-if [ ! -x "$VCPKG_ROOT/vcpkg" ]; then
-    echo "Missing vcpkg executable at $VCPKG_ROOT/vcpkg" >&2
+if [ -x "$VCPKG_ROOT/vcpkg" ]; then
+    VCPKG_BIN="$VCPKG_ROOT/vcpkg"
+elif [ -f "$VCPKG_ROOT/vcpkg.exe" ]; then
+    VCPKG_BIN="$VCPKG_ROOT/vcpkg.exe"
+else
+    echo "Missing vcpkg executable at $VCPKG_ROOT/vcpkg(.exe)" >&2
     echo "Run vcpkg bootstrap first." >&2
     exit 1
 fi
@@ -125,6 +130,10 @@ STATIC_PORTS=(
 )
 
 DYNAMIC_PORTS=(
+    zlib
+    bzip2
+    liblzma
+    openssl
     libarchive
     freetype
     fribidi
@@ -231,7 +240,7 @@ done
 if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
     echo "Step 1/2: installing static ports with triplet: $STATIC_TRIPLET"
     echo "Static ports: ${STATIC_PORTS[*]}"
-    "$VCPKG_ROOT/vcpkg" install \
+    "$VCPKG_BIN" install \
         --recurse \
         --host-triplet="$VCPKG_HOST_TRIPLET" \
         --overlay-ports="$OVERLAY_PORTS_DIR" \
@@ -248,7 +257,7 @@ if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
     if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
         echo "ffmpeg features: ${FFMPEG_FEATURES[*]}"
     fi
-    "$VCPKG_ROOT/vcpkg" install \
+    "$VCPKG_BIN" install \
         --recurse \
         --host-triplet="$VCPKG_HOST_TRIPLET" \
         --overlay-ports="$OVERLAY_PORTS_DIR" \

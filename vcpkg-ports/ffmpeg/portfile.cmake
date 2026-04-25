@@ -714,7 +714,9 @@ endif()
 if(VCPKG_TARGET_IS_MINGW)
     set(OPTIONS "${OPTIONS} --extra_cflags=-D_WIN32_WINNT=0x0601")
 elseif(VCPKG_TARGET_IS_WINDOWS)
-    set(OPTIONS "${OPTIONS} --extra-cflags=-DHAVE_UNISTD_H=0")
+    # Ensure configure checks can find headers from vcpkg-installed deps
+    # (e.g. zlib.h for --enable-zlib on custom Windows triplets).
+    set(OPTIONS "${OPTIONS} --extra-cflags=-DHAVE_UNISTD_H=0 --extra-cflags=-I\"${CURRENT_INSTALLED_DIR}/include\"")
 endif()
 
 if(NOT VCPKG_TARGET_IS_WINDOWS)
@@ -732,7 +734,13 @@ endforeach()
 
 vcpkg_find_acquire_program(PKGCONFIG)
 set(OPTIONS "${OPTIONS} --pkg-config=\"${PKGCONFIG}\"")
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+if(VCPKG_DETECTED_MSVC)
+    if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+        set(OPTIONS "${OPTIONS} \"--pkg-config-flags=--static --msvc-syntax\"")
+    else()
+        set(OPTIONS "${OPTIONS} --pkg-config-flags=--msvc-syntax")
+    endif()
+elseif(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
     set(OPTIONS "${OPTIONS} --pkg-config-flags=--static")
 endif()
 

@@ -17,129 +17,132 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mingw64-build:
+  msvc-build:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_windows }}
-    name: Build libmpv (windows-2022 / mingw64)
+    name: Build libmpv (windows-2022 / msvc)
     runs-on: windows-2022
     env:
-      VCPKG_TARGET_TRIPLET: x64-mingw-mp
+      VCPKG_TARGET_TRIPLET: x64-windows-mp
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup MSYS2 (MINGW64)
-        uses: msys2/setup-msys2@v2
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel
-            cmake
-            git
-            ninja
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-meson
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-python
+          python-version: "3.12"
 
-      - name: Show build environment
-        shell: msys2 {0}
+      - name: Install build tools
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
-            export PATH="/c/Program Files/PowerShell/7:$PATH"
-          fi
-          uname -a
-          gcc --version
-          command -v cmake
-          cmake --version | head -n 1
+          python -m pip install --upgrade pip
+          python -m pip install meson ninja
           meson --version
-          command -v ninja
           ninja --version
-          pkg-config --version
-          if command -v pwsh >/dev/null 2>&1; then
-            pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
-          else
-            echo "pwsh not found in MSYS2 shell; skipping PowerShell version check"
-          fi
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Bootstrap vcpkg repo
+        shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: |
+          if (-not (Test-Path "$env:VCPKG_ROOT/.git")) {
+            if (Test-Path "$env:VCPKG_ROOT") { Remove-Item -Recurse -Force "$env:VCPKG_ROOT" }
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+          }
 
       - name: Restore vcpkg cache
         uses: actions/cache@v4
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         with:
           path: |
             vcpkg_installed
+            vcpkg/downloads
             ~\AppData\Local\vcpkg\archives
-          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('install-vcpkg-deps.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
+          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('install-vcpkg-deps-msvc.ps1', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-
 
-      - name: Bootstrap vcpkg
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
-            export PATH="/c/Program Files/PowerShell/7:$PATH"
-          fi
-          if [ ! -d "$VCPKG_ROOT/.git" ]; then
-            rm -rf "$VCPKG_ROOT"
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-          fi
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
-
-      - name: Install vcpkg dependencies
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          export VCPKG_FORCE_SYSTEM_BINARIES=1
-          TOOLS_DIR="$PWD/.ci-tools"
-          mkdir -p "$TOOLS_DIR"
-          cp -f "$(command -v ninja)" "$TOOLS_DIR/ninja.exe"
-          export PATH="$TOOLS_DIR:/mingw64/bin:/usr/bin:$PATH"
-          echo "TOOLS_DIR=$TOOLS_DIR"
-          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
-            export PATH="/c/Program Files/PowerShell/7:$PATH"
-          fi
-          command -v ninja
-          ninja --version
-          command -v cmake
-          command -v pwsh || true
-          bash ./install-vcpkg-deps.sh
+      - name: Install vcpkg dependencies (MSVC)
+        shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: ./install-vcpkg-deps-msvc.ps1
 
       - name: Download mpv source code
-        shell: msys2 {0}
+        shell: bash
         run: bash ./download.sh
 
-      - name: Build mpv library
-        shell: msys2 {0}
-        run: bash ./build-mingw64.sh
+      - name: Build mpv library (MSVC)
+        shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: ./build-msvc.ps1
+
+      - name: Dump detect_compiler logs on failure
+        if: failure()
+        shell: pwsh
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: |
+          $a = "$env:VCPKG_ROOT/buildtrees/detect_compiler/stdout-x64-windows-mp.log"
+          $b = "$env:VCPKG_ROOT/buildtrees/detect_compiler/config-x64-windows-mp-out.log"
+          if (Test-Path $a) { Write-Host "===== $a ====="; Get-Content $a -Raw }
+          if (Test-Path $b) { Write-Host "===== $b ====="; Get-Content $b -Raw }
 
       - name: Prepare artifacts
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          set -euo pipefail
-          REF_SAFE="${GITHUB_REF_NAME//\//-}"
-          MPV_TAG="$REF_SAFE"
-          RELEASE_REV="dev"
-          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
-            MPV_TAG="${BASH_REMATCH[1]}"
-            RELEASE_REV="r${BASH_REMATCH[2]}"
-          elif [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            MPV_TAG="${BASH_REMATCH[1]}"
-            RELEASE_REV="r0"
-          fi
-          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-windows-mingw64-x86_64"
-          bash ./package-mingw64-runtime.sh \
-            --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
-            --out-dir "$GITHUB_WORKSPACE/release" \
-            --pkg-name "$PKG_NAME"
+          $refSafe = "${{ github.ref_name }}" -replace '/', '-'
+          $mpvTag = $refSafe
+          $releaseRev = 'dev'
+          if ("${{ github.ref_type }}" -eq 'tag' -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$') {
+            $mpvTag = $Matches[1]
+            $releaseRev = "r$($Matches[2])"
+          } elseif ("${{ github.ref_type }}" -eq 'tag' -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+)$') {
+            $mpvTag = $Matches[1]
+            $releaseRev = 'r0'
+          }
+
+          $pkgName = "libmpv-$mpvTag-$releaseRev-windows-msvc-x86_64"
+          $buildDir = Join-Path $env:GITHUB_WORKSPACE 'vendor/mpv/build-msvc'
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'release'
+          $stageDir = Join-Path $env:RUNNER_TEMP 'libmpv-msvc-stage'
+
+          Remove-Item -Recurse -Force $stageDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+
+          Copy-Item "$buildDir/libmpv*.dll" $stageDir -ErrorAction SilentlyContinue
+          Copy-Item "$buildDir/libmpv*.lib" $stageDir -ErrorAction SilentlyContinue
+          Copy-Item "$buildDir/libmpv*.pdb" $stageDir -ErrorAction SilentlyContinue
+
+          $vcpkgBinDir = Join-Path $env:VCPKG_INSTALLED_DIR "$env:VCPKG_TARGET_TRIPLET/bin"
+          if (Test-Path $vcpkgBinDir) {
+            Copy-Item "$vcpkgBinDir/*.dll" $stageDir -ErrorAction SilentlyContinue
+          }
+
+          if (-not (Get-ChildItem $stageDir -Filter 'libmpv*.dll' -ErrorAction SilentlyContinue)) {
+            throw "No libmpv*.dll found in $buildDir"
+          }
+
+          $zipPath = Join-Path $releaseDir "$pkgName.zip"
+          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $zipPath
+
+          $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $zipPath)" | Out-File -FilePath "$zipPath.sha256" -Encoding ascii
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: libmpv-windows-ci-${{ github.run_id }}-x86_64
           path: |
-            libmpv-*.tar.gz
-            libmpv-*.tar.gz.sha256
+            release/*.zip
+            release/*.zip.sha256
