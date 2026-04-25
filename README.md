@@ -42,11 +42,29 @@ bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos
 
 ## Local Build (mingw64 / MSYS2)
 
-Download source and build in `MSYS2 MINGW64` shell:
+Install toolchain in `MSYS2 MINGW64` shell (one-time):
+
+```bash
+pacman -S --needed --noconfirm \
+  base-devel git curl \
+  mingw-w64-x86_64-toolchain \
+  mingw-w64-x86_64-meson mingw-w64-x86_64-ninja \
+  mingw-w64-x86_64-pkgconf mingw-w64-x86_64-python
+```
+
+Then bootstrap vcpkg, install dependencies, and build:
 
 ```bash
 bash ./download.sh
+bash ./install-vcpkg-deps.sh
 bash ./build-mingw64.sh
+```
+
+Optional: tune minimum Windows target API level (default is `0x0601`, Windows 7):
+
+```bash
+MPV_WIN32_WINNT=0x0603 bash ./install-vcpkg-deps.sh
+MPV_WIN32_WINNT=0x0603 bash ./build-mingw64.sh
 ```
 
 Build a local runtime package:

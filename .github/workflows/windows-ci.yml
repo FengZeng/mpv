@@ -21,6 +21,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_windows }}
     name: Build libmpv (windows-2022 / mingw64)
     runs-on: windows-2022
+    env:
+      VCPKG_TARGET_TRIPLET: x64-mingw-mp
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
     steps:
       - uses: actions/checkout@v6
 
@@ -31,34 +35,78 @@ jobs:
           update: true
           install: >-
             base-devel
+            cmake
             git
+            ninja
             mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
             mingw-w64-x86_64-meson
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-python
-            mingw-w64-x86_64-ffmpeg
-            mingw-w64-x86_64-libass
-            mingw-w64-x86_64-luajit
-            mingw-w64-x86_64-uchardet
-            mingw-w64-x86_64-libplacebo
-            mingw-w64-x86_64-libarchive
-            mingw-w64-x86_64-libbluray
-            mingw-w64-x86_64-libcdio-paranoia
-            mingw-w64-x86_64-libdvdnav
-            mingw-w64-x86_64-rubberband
-            mingw-w64-x86_64-zimg
-            mingw-w64-x86_64-vulkan-loader
-            mingw-w64-x86_64-vulkan-headers
 
       - name: Show build environment
         shell: msys2 {0}
         run: |
           set -euo pipefail
+          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
+            export PATH="/c/Program Files/PowerShell/7:$PATH"
+          fi
           uname -a
           gcc --version
+          command -v cmake
+          cmake --version | head -n 1
           meson --version
+          command -v ninja
+          ninja --version
           pkg-config --version
+          if command -v pwsh >/dev/null 2>&1; then
+            pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+          else
+            echo "pwsh not found in MSYS2 shell; skipping PowerShell version check"
+          fi
+
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg_installed
+            ~\AppData\Local\vcpkg\archives
+          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('install-vcpkg-deps.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-
+
+      - name: Bootstrap vcpkg
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
+            export PATH="/c/Program Files/PowerShell/7:$PATH"
+          fi
+          if [ ! -d "$VCPKG_ROOT/.git" ]; then
+            rm -rf "$VCPKG_ROOT"
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          fi
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      - name: Install vcpkg dependencies
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          export VCPKG_FORCE_SYSTEM_BINARIES=1
+          TOOLS_DIR="$PWD/.ci-tools"
+          mkdir -p "$TOOLS_DIR"
+          cp -f "$(command -v ninja)" "$TOOLS_DIR/ninja.exe"
+          export PATH="$TOOLS_DIR:/mingw64/bin:/usr/bin:$PATH"
+          echo "TOOLS_DIR=$TOOLS_DIR"
+          if [ -x "/c/Program Files/PowerShell/7/pwsh.exe" ]; then
+            export PATH="/c/Program Files/PowerShell/7:$PATH"
+          fi
+          command -v ninja
+          ninja --version
+          command -v cmake
+          command -v pwsh || true
+          bash ./install-vcpkg-deps.sh
 
       - name: Download mpv source code
         shell: msys2 {0}

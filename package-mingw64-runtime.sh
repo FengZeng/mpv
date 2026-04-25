@@ -11,6 +11,20 @@ PKG_NAME=""
 DEFAULT_PKG_NAME="libmpv-local-windows-mingw64-x86_64"
 ORIGINAL_ARGC="$#"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
+VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
+VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-mingw-mp}"
+
+if [[ "$VCPKG_TARGET_TRIPLET" == *-static ]]; then
+  VCPKG_DYNAMIC_TRIPLET="${VCPKG_TARGET_TRIPLET%-static}"
+  if [ ! -d "$VCPKG_INSTALLED_DIR/$VCPKG_DYNAMIC_TRIPLET" ]; then
+    VCPKG_DYNAMIC_TRIPLET="${VCPKG_DYNAMIC_TRIPLET}-dynamic"
+  fi
+elif [[ "$VCPKG_TARGET_TRIPLET" == *-dynamic ]]; then
+  VCPKG_DYNAMIC_TRIPLET="$VCPKG_TARGET_TRIPLET"
+else
+  VCPKG_DYNAMIC_TRIPLET="$VCPKG_TARGET_TRIPLET"
+fi
+VCPKG_DYNAMIC_BIN_DIR="$VCPKG_INSTALLED_DIR/$VCPKG_DYNAMIC_TRIPLET/bin"
 
 usage() {
   cat <<'USAGE'
@@ -152,7 +166,7 @@ resolve_dep() {
     return 0
   fi
 
-  for path_dir in "$BIN_DIR" "$BUILD_DIR" "$MINGW_PREFIX/bin"; do
+  for path_dir in "$BIN_DIR" "$BUILD_DIR" "$VCPKG_DYNAMIC_BIN_DIR" "$MINGW_PREFIX/bin"; do
     [ -n "$path_dir" ] || continue
     candidate="${path_dir}/${dep}"
     if [ -e "$candidate" ]; then

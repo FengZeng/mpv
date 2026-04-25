@@ -9,16 +9,53 @@ VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-}"
 OVERLAY_TRIPLETS_DIR="$PROJECT_ROOT/vcpkg-triplets"
 OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports"
 
+resolve_triplet_file() {
+    local triplet="$1"
+    local candidate
+
+    for candidate in \
+        "$OVERLAY_TRIPLETS_DIR/${triplet}.cmake" \
+        "$VCPKG_ROOT/triplets/${triplet}.cmake" \
+        "$VCPKG_ROOT/triplets/community/${triplet}.cmake"; do
+        if [ -f "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
-    case "$(uname -m)" in
-        arm64)
-            VCPKG_TARGET_TRIPLET="arm64-osx-mp"
+    case "$(uname -s)" in
+        Darwin)
+            case "$(uname -m)" in
+                arm64)
+                    VCPKG_TARGET_TRIPLET="arm64-osx-mp"
+                    ;;
+                x86_64)
+                    VCPKG_TARGET_TRIPLET="x64-osx-mp"
+                    ;;
+                *)
+                    echo "Unsupported host architecture for default macOS triplet: $(uname -m)" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
-        x86_64)
-            VCPKG_TARGET_TRIPLET="x64-osx-mp"
+        MINGW*|MSYS*|CYGWIN*)
+            case "$(uname -m)" in
+                x86_64)
+                    VCPKG_TARGET_TRIPLET="x64-mingw-mp"
+                    ;;
+                *)
+                    echo "Unsupported host architecture for default Windows triplet: $(uname -m)" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         *)
-            echo "Unsupported host architecture for default triplet: $(uname -m)" >&2
+            echo "Unsupported host platform for default triplet: $(uname -s)" >&2
+            echo "Set VCPKG_TARGET_TRIPLET explicitly." >&2
             exit 1
             ;;
     esac
@@ -139,13 +176,39 @@ for port in "${UNAVAILABLE_OPTIONAL_PORTS[@]}"; do
     fi
 done
 
-STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
+if [[ "$VCPKG_TARGET_TRIPLET" == *-static ]]; then
+    STATIC_TRIPLET="$VCPKG_TARGET_TRIPLET"
+    DYNAMIC_TRIPLET="${VCPKG_TARGET_TRIPLET%-static}"
+    if ! resolve_triplet_file "$DYNAMIC_TRIPLET" >/dev/null; then
+        DYNAMIC_TRIPLET="${DYNAMIC_TRIPLET}-dynamic"
+    fi
+elif [[ "$VCPKG_TARGET_TRIPLET" == *-dynamic ]]; then
+    DYNAMIC_TRIPLET="$VCPKG_TARGET_TRIPLET"
+    STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET%-dynamic}-static"
+else
+    DYNAMIC_TRIPLET="$VCPKG_TARGET_TRIPLET"
+    STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
+fi
+
+# Host triplet is required for ports that build helper tools (e.g. luajit buildvm).
+# Keep host as non-static to ensure build-time executables are runnable.
+if [ -z "${VCPKG_HOST_TRIPLET:-}" ]; then
+    if [[ "$DYNAMIC_TRIPLET" == *-dynamic ]]; then
+        VCPKG_HOST_TRIPLET="$DYNAMIC_TRIPLET"
+    elif resolve_triplet_file "${DYNAMIC_TRIPLET}-dynamic" >/dev/null; then
+        VCPKG_HOST_TRIPLET="${DYNAMIC_TRIPLET}-dynamic"
+    else
+        VCPKG_HOST_TRIPLET="$DYNAMIC_TRIPLET"
+    fi
+fi
+
 STATIC_SPECS=()
 DYNAMIC_SPECS=()
 
-if [ "${#STATIC_PORTS[@]}" -gt 0 ] && [ ! -f "$OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" ]; then
-    echo "Missing static triplet file: $OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" >&2
-    echo "Create the static triplet first or adjust VCPKG_TARGET_TRIPLET." >&2
+if [ "${#STATIC_PORTS[@]}" -gt 0 ] && ! resolve_triplet_file "$STATIC_TRIPLET" >/dev/null; then
+    echo "Missing static triplet file for: $STATIC_TRIPLET" >&2
+    echo "Searched in overlay and vcpkg built-in triplet locations." >&2
+    echo "Create triplet file or adjust VCPKG_TARGET_TRIPLET." >&2
     exit 1
 fi
 
@@ -156,12 +219,12 @@ for port in "${DYNAMIC_PORTS[@]}"; do
     if [ "$port" = "ffmpeg" ]; then
         if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
             ffmpeg_features_csv="$(IFS=,; echo "${FFMPEG_FEATURES[*]}")"
-            DYNAMIC_SPECS+=("ffmpeg[${ffmpeg_features_csv}]:${VCPKG_TARGET_TRIPLET}")
+            DYNAMIC_SPECS+=("ffmpeg[${ffmpeg_features_csv}]:${DYNAMIC_TRIPLET}")
         else
-            DYNAMIC_SPECS+=("ffmpeg:${VCPKG_TARGET_TRIPLET}")
+            DYNAMIC_SPECS+=("ffmpeg:${DYNAMIC_TRIPLET}")
         fi
     else
-        DYNAMIC_SPECS+=("${port}:${VCPKG_TARGET_TRIPLET}")
+        DYNAMIC_SPECS+=("${port}:${DYNAMIC_TRIPLET}")
     fi
 done
 
@@ -170,6 +233,7 @@ if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
     echo "Static ports: ${STATIC_PORTS[*]}"
     "$VCPKG_ROOT/vcpkg" install \
         --recurse \
+        --host-triplet="$VCPKG_HOST_TRIPLET" \
         --overlay-ports="$OVERLAY_PORTS_DIR" \
         --overlay-triplets="$OVERLAY_TRIPLETS_DIR" \
         --x-install-root="$VCPKG_INSTALLED_DIR" \
@@ -177,7 +241,7 @@ if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
 fi
 
 if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
-    echo "Step 2/2: installing dynamic ports with triplet: $VCPKG_TARGET_TRIPLET"
+    echo "Step 2/2: installing dynamic ports with triplet: $DYNAMIC_TRIPLET"
     if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
         echo "Dynamic ports: ${DYNAMIC_PORTS[*]}"
     fi
@@ -186,6 +250,7 @@ if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
     fi
     "$VCPKG_ROOT/vcpkg" install \
         --recurse \
+        --host-triplet="$VCPKG_HOST_TRIPLET" \
         --overlay-ports="$OVERLAY_PORTS_DIR" \
         --overlay-triplets="$OVERLAY_TRIPLETS_DIR" \
         --x-install-root="$VCPKG_INSTALLED_DIR" \
