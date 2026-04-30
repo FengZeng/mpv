@@ -46,7 +46,7 @@ if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
         MINGW*|MSYS*|CYGWIN*)
             case "$(uname -m)" in
                 x86_64)
-                    VCPKG_TARGET_TRIPLET="x64-windows-mp"
+                    VCPKG_TARGET_TRIPLET="x64-mingw-mp"
                     ;;
                 *)
                     echo "Unsupported host architecture for default Windows triplet: $(uname -m)" >&2
@@ -202,7 +202,17 @@ fi
 # Host triplet is required for ports that build helper tools (e.g. luajit buildvm).
 # Keep host as non-static to ensure build-time executables are runnable.
 if [ -z "${VCPKG_HOST_TRIPLET:-}" ]; then
-    if [[ "$DYNAMIC_TRIPLET" == *-dynamic ]]; then
+    if [[ "$DYNAMIC_TRIPLET" == *-mingw* ]] && [ "$(uname -s)" = "Linux" ]; then
+        case "$(uname -m)" in
+            x86_64) VCPKG_HOST_TRIPLET="x64-linux" ;;
+            aarch64|arm64) VCPKG_HOST_TRIPLET="arm64-linux" ;;
+            *)
+                echo "Unsupported Linux host architecture for default VCPKG_HOST_TRIPLET: $(uname -m)" >&2
+                echo "Set VCPKG_HOST_TRIPLET explicitly." >&2
+                exit 1
+                ;;
+        esac
+    elif [[ "$DYNAMIC_TRIPLET" == *-dynamic ]]; then
         VCPKG_HOST_TRIPLET="$DYNAMIC_TRIPLET"
     elif resolve_triplet_file "${DYNAMIC_TRIPLET}-dynamic" >/dev/null; then
         VCPKG_HOST_TRIPLET="${DYNAMIC_TRIPLET}-dynamic"

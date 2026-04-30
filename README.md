@@ -40,69 +40,85 @@ Build a local runtime package:
 bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos
 ```
 
-## Local Build (MSVC / PowerShell)
+## Local Build (Windows Target via Ubuntu x64 + MinGW-w64)
 
-Install Visual Studio Build Tools (Desktop development with C++) and make sure
-`meson` + `ninja` are available in `PATH`.
+Recommended approach for Windows builds is cross-compiling on Ubuntu x64 with
+`mingw-w64`. This keeps the toolchain aligned with CI and avoids maintaining a
+separate MSVC pipeline.
 
-Then bootstrap vcpkg, install dependencies, and build:
+Install host tools on Ubuntu/Debian:
 
-```powershell
-bash ./download.sh
-powershell -ExecutionPolicy Bypass -File .\install-vcpkg-deps-msvc.ps1
-powershell -ExecutionPolicy Bypass -File .\build-msvc.ps1
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  autoconf autoconf-archive automake build-essential curl git libtool make \
+  mingw-w64 gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
+  nasm pkg-config python3 python3-pip zip
+python3 -m pip install --upgrade pip
+python3 -m pip install meson ninja
 ```
 
-## GitHub CI (windows-2022, MSVC)
+Bootstrap vcpkg, install Windows target dependencies, and build:
 
-Recommended CI steps (PowerShell):
+```bash
+bash ./download.sh
+git clone --depth 1 https://github.com/microsoft/vcpkg.git ./vcpkg
+./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+bash ./install-vcpkg-deps-mingw.sh
+bash ./build-mingw64.sh
+```
+
+Optional: tune minimum Windows target API level (default is `0x0601`, Windows 7):
+
+```bash
+export MPV_WIN32_WINNT=0x0603
+bash ./install-vcpkg-deps-mingw.sh
+bash ./build-mingw64.sh
+```
+
+## GitHub CI (ubuntu-24.04, MinGW-w64 Cross Build)
+
+Recommended CI steps:
 
 ```yaml
 - uses: actions/checkout@v4
-  with:
-    submodules: recursive
 
 - name: Setup Python
   uses: actions/setup-python@v5
   with:
-    python-version: "3.11"
+    python-version: "3.12"
 
-- name: Install meson + ninja
-  shell: pwsh
+- name: Install host build tools
+  shell: bash
   run: |
+    sudo apt-get update
+    sudo apt-get install -y \
+      autoconf autoconf-archive automake build-essential curl git libtool make \
+      mingw-w64 gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
+      nasm pkg-config zip
     python -m pip install --upgrade pip
     python -m pip install meson ninja
+
+- name: Bootstrap vcpkg
+  shell: bash
+  run: |
+    git clone --depth 1 https://github.com/microsoft/vcpkg.git ./vcpkg
+    ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
 - name: Download mpv source
   shell: bash
   run: |
     bash ./download.sh
 
-- name: Install vcpkg deps (MSVC triplet)
-  shell: pwsh
+- name: Install vcpkg deps (MinGW triplet)
+  shell: bash
   run: |
-    ./install-vcpkg-deps-msvc.ps1
+    ./install-vcpkg-deps-mingw.sh
 
-- name: Build libmpv (MSVC)
-  shell: pwsh
+- name: Build libmpv (MinGW-w64)
+  shell: bash
   run: |
-    ./build-msvc.ps1
-```
-
-Or from bash/MSYS shell:
-
-```bash
-bash ./download.sh
-bash ./install-vcpkg-deps.sh
-bash ./build-msvc.sh
-```
-
-Optional: tune minimum Windows target API level (default is `0x0601`, Windows 7):
-
-```powershell
-$env:MPV_WIN32_WINNT='0x0603'
-powershell -ExecutionPolicy Bypass -File .\install-vcpkg-deps-msvc.ps1
-powershell -ExecutionPolicy Bypass -File .\build-msvc.ps1
+    ./build-mingw64.sh
 ```
 
 ## Local Build (Linux)

@@ -17,12 +17,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  msvc-build:
+  windows-mingw-build:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_windows }}
-    name: Build libmpv (windows-2022 / msvc)
-    runs-on: windows-2022
+    name: Build libmpv (ubuntu-24.04 / mingw-w64)
+    runs-on: ubuntu-24.04
     env:
-      VCPKG_TARGET_TRIPLET: x64-windows-mp
+      VCPKG_TARGET_TRIPLET: x64-mingw-mp
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
     steps:
@@ -34,115 +34,110 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        shell: pwsh
+        shell: bash
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf autoconf-archive automake build-essential curl git libtool make \
+            mingw-w64 gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
+            nasm pkg-config zip
           python -m pip install --upgrade pip
           python -m pip install meson ninja
           meson --version
           ninja --version
 
-      - name: Setup MSVC Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Bootstrap vcpkg repo
-        shell: pwsh
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        shell: bash
         run: |
-          if (-not (Test-Path "$env:VCPKG_ROOT/.git")) {
-            if (Test-Path "$env:VCPKG_ROOT") { Remove-Item -Recurse -Force "$env:VCPKG_ROOT" }
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
-          }
+          if [ ! -d "$VCPKG_ROOT/.git" ]; then
+            rm -rf "$VCPKG_ROOT"
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          fi
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
 
       - name: Restore vcpkg cache
         uses: actions/cache@v4
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         with:
           path: |
             vcpkg_installed
             vcpkg/downloads
-            ~\AppData\Local\vcpkg\archives
-          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('install-vcpkg-deps-msvc.ps1', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
+            ~/.cache/vcpkg/archives
+          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('install-vcpkg-deps.sh', 'install-vcpkg-deps-mingw.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-
 
-      - name: Install vcpkg dependencies (MSVC)
-        shell: pwsh
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-        run: ./install-vcpkg-deps-msvc.ps1
+      - name: Install vcpkg dependencies (MinGW-w64)
+        shell: bash
+        run: ./install-vcpkg-deps-mingw.sh
 
       - name: Download mpv source code
         shell: bash
         run: bash ./download.sh
 
-      - name: Build mpv library (MSVC)
-        shell: pwsh
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-        run: ./build-msvc.ps1
+      - name: Build mpv library (MinGW-w64)
+        shell: bash
+        run: ./build-mingw64.sh
 
-      - name: Dump detect_compiler logs on failure
+      - name: Dump recent vcpkg logs on failure
         if: failure()
-        shell: pwsh
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        shell: bash
         run: |
-          $a = "$env:VCPKG_ROOT/buildtrees/detect_compiler/stdout-x64-windows-mp.log"
-          $b = "$env:VCPKG_ROOT/buildtrees/detect_compiler/config-x64-windows-mp-out.log"
-          if (Test-Path $a) { Write-Host "===== $a ====="; Get-Content $a -Raw }
-          if (Test-Path $b) { Write-Host "===== $b ====="; Get-Content $b -Raw }
+          if [ -d "$VCPKG_ROOT/buildtrees" ]; then
+            find "$VCPKG_ROOT/buildtrees" -maxdepth 2 -type f \( -name '*.log' -o -name '*.txt' \) | sort | tail -n 20 | while read -r file; do
+              echo "===== $file ====="
+              sed -n '1,160p' "$file" || true
+            done
+          fi
 
       - name: Prepare artifacts
-        shell: pwsh
+        shell: bash
         run: |
-          $refSafe = "${{ github.ref_name }}" -replace '/', '-'
-          $mpvTag = $refSafe
-          $releaseRev = 'dev'
-          if ("${{ github.ref_type }}" -eq 'tag' -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$') {
-            $mpvTag = $Matches[1]
-            $releaseRev = "r$($Matches[2])"
-          } elseif ("${{ github.ref_type }}" -eq 'tag' -and "${{ github.ref_name }}" -match '^v([0-9]+\.[0-9]+\.[0-9]+)$') {
-            $mpvTag = $Matches[1]
-            $releaseRev = 'r0'
-          }
+          ref_safe="${GITHUB_REF_NAME//\//-}"
+          mpv_tag="$ref_safe"
+          release_rev="dev"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
+            mpv_tag="${BASH_REMATCH[1]}"
+            release_rev="r${BASH_REMATCH[2]}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            mpv_tag="${BASH_REMATCH[1]}"
+            release_rev="r0"
+          fi
 
-          $pkgName = "libmpv-$mpvTag-$releaseRev-windows-msvc-x86_64"
-          $buildDir = Join-Path $env:GITHUB_WORKSPACE 'vendor/mpv/build-msvc'
-          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'release'
-          $stageDir = Join-Path $env:RUNNER_TEMP 'libmpv-msvc-stage'
+          pkg_name="libmpv-${mpv_tag}-${release_rev}-windows-mingw-x86_64"
+          build_dir="$GITHUB_WORKSPACE/vendor/mpv/build-mingw64"
+          release_dir="$GITHUB_WORKSPACE/release"
+          stage_dir="$RUNNER_TEMP/libmpv-mingw-stage"
 
-          Remove-Item -Recurse -Force $stageDir -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
-          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+          rm -rf "$stage_dir"
+          mkdir -p "$stage_dir" "$release_dir"
 
-          Copy-Item "$buildDir/libmpv*.dll" $stageDir -ErrorAction SilentlyContinue
-          Copy-Item "$buildDir/libmpv*.lib" $stageDir -ErrorAction SilentlyContinue
-          Copy-Item "$buildDir/libmpv*.pdb" $stageDir -ErrorAction SilentlyContinue
+          find "$build_dir" -maxdepth 1 -type f \( -name 'libmpv*.dll' -o -name 'libmpv*.dll.a' \) -exec cp {} "$stage_dir/" \;
 
-          $vcpkgBinDir = Join-Path $env:VCPKG_INSTALLED_DIR "$env:VCPKG_TARGET_TRIPLET/bin"
-          if (Test-Path $vcpkgBinDir) {
-            Copy-Item "$vcpkgBinDir/*.dll" $stageDir -ErrorAction SilentlyContinue
-          }
+          vcpkg_bin_dir="$VCPKG_INSTALLED_DIR/$VCPKG_TARGET_TRIPLET/bin"
+          if [ -d "$vcpkg_bin_dir" ]; then
+            find "$vcpkg_bin_dir" -maxdepth 1 -type f -name '*.dll' -exec cp {} "$stage_dir/" \;
+          fi
 
-          if (-not (Get-ChildItem $stageDir -Filter 'libmpv*.dll' -ErrorAction SilentlyContinue)) {
-            throw "No libmpv*.dll found in $buildDir"
-          }
+          if ! find "$stage_dir" -maxdepth 1 -type f -name 'libmpv*.dll' | grep -q .; then
+            echo "No libmpv*.dll found in $build_dir" >&2
+            exit 1
+          fi
 
-          $zipPath = Join-Path $releaseDir "$pkgName.zip"
-          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-          Compress-Archive -Path "$stageDir/*" -DestinationPath $zipPath
-
-          $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $(Split-Path -Leaf $zipPath)" | Out-File -FilePath "$zipPath.sha256" -Encoding ascii
+          zip_path="$release_dir/$pkg_name.zip"
+          rm -f "$zip_path" "$zip_path.sha256"
+          (
+            cd "$stage_dir"
+            zip -9 -r "$zip_path" .
+          )
+          (
+            cd "$release_dir"
+            sha256sum "$(basename "$zip_path")" > "$(basename "$zip_path").sha256"
+          )
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libmpv-windows-ci-${{ github.run_id }}-x86_64
+          name: libmpv-windows-ci-mingw-${{ github.run_id }}-x86_64
           path: |
             release/*.zip
             release/*.zip.sha256
