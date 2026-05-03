@@ -8,6 +8,7 @@ VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
 VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-}"
 OVERLAY_TRIPLETS_DIR="$PROJECT_ROOT/vcpkg-triplets"
 OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports"
+X64_OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports-x64"
 
 if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
     case "$(uname -m)" in
@@ -142,6 +143,13 @@ done
 STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
 STATIC_SPECS=()
 DYNAMIC_SPECS=()
+OVERLAY_PORT_ARGS=(
+    --overlay-ports="$OVERLAY_PORTS_DIR"
+)
+
+if [ "$VCPKG_TARGET_TRIPLET" = "x64-osx-mp" ]; then
+    OVERLAY_PORT_ARGS+=(--overlay-ports="$X64_OVERLAY_PORTS_DIR")
+fi
 
 if [ "${#STATIC_PORTS[@]}" -gt 0 ] && [ ! -f "$OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" ]; then
     echo "Missing static triplet file: $OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" >&2
@@ -170,7 +178,7 @@ if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
     echo "Static ports: ${STATIC_PORTS[*]}"
     "$VCPKG_ROOT/vcpkg" install \
         --recurse \
-        --overlay-ports="$OVERLAY_PORTS_DIR" \
+        "${OVERLAY_PORT_ARGS[@]}" \
         --overlay-triplets="$OVERLAY_TRIPLETS_DIR" \
         --x-install-root="$VCPKG_INSTALLED_DIR" \
         "${STATIC_SPECS[@]}"
@@ -186,7 +194,7 @@ if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
     fi
     "$VCPKG_ROOT/vcpkg" install \
         --recurse \
-        --overlay-ports="$OVERLAY_PORTS_DIR" \
+        "${OVERLAY_PORT_ARGS[@]}" \
         --overlay-triplets="$OVERLAY_TRIPLETS_DIR" \
         --x-install-root="$VCPKG_INSTALLED_DIR" \
         "${DYNAMIC_SPECS[@]}"
