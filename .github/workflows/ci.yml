@@ -92,20 +92,16 @@ jobs:
           path: |
             vcpkg_installed
             ~/Library/Caches/vcpkg/archives
-          key: ${{ runner.os }}-${{ matrix.vcpkg_triplet }}-vcpkg-${{ hashFiles('install-vcpkg-deps.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
+          key: ${{ runner.os }}-${{ matrix.vcpkg_triplet }}-vcpkg-${{ hashFiles('bootstrap-vcpkg.sh', 'install-vcpkg-deps.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.vcpkg_triplet }}-vcpkg-
 
       - name: Bootstrap vcpkg
-        run: |
-          set -euo pipefail
-          if [ ! -d "$VCPKG_ROOT/.git" ]; then
-            rm -rf "$VCPKG_ROOT"
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-          fi
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+        run: bash ./bootstrap-vcpkg.sh
 
       - name: Install vcpkg dependencies
+        env:
+          VCPKG_SKIP_BOOTSTRAP: 1
         run: bash ./install-vcpkg-deps.sh
 
       - name: Download mpv source code

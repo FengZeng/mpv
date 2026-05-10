@@ -23,6 +23,7 @@ This package is intended to run without requiring Homebrew on the target machine
 Download source and build:
 
 ```bash
+bash ./install-vcpkg-deps.sh
 bash ./download.sh
 bash ./build-macos.sh
 ```
@@ -33,6 +34,20 @@ Build a specific mpv version:
 MPV_VERSION=0.41.0 bash ./download.sh
 bash ./build-macos.sh
 ```
+
+`install-vcpkg-deps.sh` bootstraps vcpkg and pins it to tag `2026.04.27` by default. Override with `VCPKG_REF=...` only when intentionally updating the dependency baseline.
+
+Build an x64 macOS library on an arm64 macOS host:
+
+```bash
+VCPKG_TARGET_TRIPLET=x64-osx-mp bash ./install-vcpkg-deps.sh
+bash ./download.sh
+MPV_TARGET_ARCH=x86_64 VCPKG_TARGET_TRIPLET=x64-osx-mp bash ./build-macos.sh
+MPV_TARGET_ARCH=x86_64 VCPKG_TARGET_TRIPLET=x64-osx-mp \
+  bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos-x86_64
+```
+
+The x64 dependency install uses `vcpkg_installed/x64-osx-mp`, separate from the default arm64 triplet.
 
 Build a local runtime package:
 

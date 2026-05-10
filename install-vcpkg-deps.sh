@@ -10,6 +10,10 @@ OVERLAY_TRIPLETS_DIR="$PROJECT_ROOT/vcpkg-triplets"
 OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports"
 X64_OVERLAY_PORTS_DIR="$PROJECT_ROOT/vcpkg-ports-x64"
 
+if [ "${VCPKG_SKIP_BOOTSTRAP:-0}" != "1" ]; then
+    bash "$PROJECT_ROOT/bootstrap-vcpkg.sh"
+fi
+
 if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
     case "$(uname -m)" in
         arm64)
