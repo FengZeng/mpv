@@ -433,7 +433,7 @@ else()
     endif()
 endif()
 # Force TLS backend to OpenSSL for this overlay.
-string(APPEND OPTIONS " --enable-openssl --disable-mbedtls")
+# string(APPEND OPTIONS " --enable-openssl --disable-mbedtls")
 
 if("opus" IN_LIST FEATURES)
     set(OPTIONS "${OPTIONS} --enable-libopus")

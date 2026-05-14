@@ -105,7 +105,6 @@ DYNAMIC_PORTS=(
     vulkan
     libbluray
     libdvdnav
-    libsmb2
     opus
     rubberband
     libjpeg-turbo
@@ -126,7 +125,6 @@ FFMPEG_FEATURES=(
     iconv
     lzma
     opus
-    openssl
     rubberband
     vulkan
     zlib
