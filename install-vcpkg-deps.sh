@@ -15,15 +15,35 @@ if [ "${VCPKG_SKIP_BOOTSTRAP:-0}" != "1" ]; then
 fi
 
 if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
-    case "$(uname -m)" in
-        arm64)
-            VCPKG_TARGET_TRIPLET="arm64-osx-mp"
+    case "$(uname -s)" in
+        Darwin)
+            case "$(uname -m)" in
+                arm64)
+                    VCPKG_TARGET_TRIPLET="arm64-osx-mp"
+                    ;;
+                x86_64)
+                    VCPKG_TARGET_TRIPLET="x64-osx-mp"
+                    ;;
+                *)
+                    echo "Unsupported host architecture for default macOS triplet: $(uname -m)" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
-        x86_64)
-            VCPKG_TARGET_TRIPLET="x64-osx-mp"
+        MINGW*|MSYS*)
+            case "$(uname -m)" in
+                x86_64)
+                    VCPKG_TARGET_TRIPLET="x64-mingw-dynamic"
+                    ;;
+                *)
+                    echo "Unsupported host architecture for default mingw triplet: $(uname -m)" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         *)
-            echo "Unsupported host architecture for default triplet: $(uname -m)" >&2
+            echo "Unsupported host system for default triplet: $(uname -s)" >&2
+            echo "Set VCPKG_TARGET_TRIPLET explicitly." >&2
             exit 1
             ;;
     esac
@@ -142,7 +162,14 @@ for port in "${UNAVAILABLE_OPTIONAL_PORTS[@]}"; do
     fi
 done
 
-STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
+case "$VCPKG_TARGET_TRIPLET" in
+    x64-mingw-dynamic)
+        STATIC_TRIPLET="x64-mingw-static"
+        ;;
+    *)
+        STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
+        ;;
+esac
 STATIC_SPECS=()
 DYNAMIC_SPECS=()
 OVERLAY_PORT_ARGS=(
@@ -153,7 +180,7 @@ if [ "$VCPKG_TARGET_TRIPLET" = "x64-osx-mp" ]; then
     OVERLAY_PORT_ARGS+=(--overlay-ports="$X64_OVERLAY_PORTS_DIR")
 fi
 
-if [ "${#STATIC_PORTS[@]}" -gt 0 ] && [ ! -f "$OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" ]; then
+if [ "${#STATIC_PORTS[@]}" -gt 0 ] && [[ "$STATIC_TRIPLET" == *"-osx-mp-static" ]] && [ ! -f "$OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" ]; then
     echo "Missing static triplet file: $OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" >&2
     echo "Create the static triplet first or adjust VCPKG_TARGET_TRIPLET." >&2
     exit 1

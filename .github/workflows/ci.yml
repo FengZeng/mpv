@@ -214,6 +214,11 @@ jobs:
   mingw64-build:
     name: Build libmpv (windows-2022 / mingw64)
     runs-on: windows-2022
+    env:
+      VCPKG_TARGET_TRIPLET: x64-mingw-dynamic
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+      VCPKG_FORCE_SYSTEM_BINARIES: 1
     steps:
       - uses: actions/checkout@v6
 
@@ -230,7 +235,6 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-python
-            mingw-w64-x86_64-ffmpeg
             mingw-w64-x86_64-libass
             mingw-w64-x86_64-luajit
             mingw-w64-x86_64-uchardet
@@ -252,6 +256,26 @@ jobs:
           gcc --version
           meson --version
           pkg-config --version
+
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg_installed
+            ~\AppData\Local\vcpkg\archives
+          key: ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-${{ hashFiles('bootstrap-vcpkg.sh', 'install-vcpkg-deps.sh', 'vcpkg-triplets/*.cmake', 'vcpkg-ports/**') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.VCPKG_TARGET_TRIPLET }}-vcpkg-
+
+      - name: Bootstrap vcpkg
+        shell: msys2 {0}
+        run: bash ./bootstrap-vcpkg.sh
+
+      - name: Install vcpkg dependencies
+        shell: msys2 {0}
+        env:
+          VCPKG_SKIP_BOOTSTRAP: 1
+        run: bash ./install-vcpkg-deps.sh
 
       - name: Download mpv source code
         shell: msys2 {0}

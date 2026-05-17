@@ -7,6 +7,9 @@ VENDOR_DIR="$PROJECT_ROOT/vendor"
 MPV_DIR="$VENDOR_DIR/mpv"
 BUILD_DIR="$MPV_DIR/buildout"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
+VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
+VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-x64-mingw-dynamic}"
+VCPKG_PREFIX="$VCPKG_INSTALLED_DIR/$VCPKG_TARGET_TRIPLET"
 
 if [ ! -d "$MPV_DIR" ]; then
     echo "Missing mpv source: $MPV_DIR"
@@ -22,8 +25,15 @@ fi
 
 export PATH="$MINGW_PREFIX/bin:$PATH"
 export PKG_CONFIG="$MINGW_PREFIX/bin/pkg-config"
-export PKG_CONFIG_PATH="$MINGW_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export PKG_CONFIG_LIBDIR="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+
+if [ ! -d "$VCPKG_PREFIX" ]; then
+    echo "Missing vcpkg triplet install: $VCPKG_PREFIX" >&2
+    echo "Run: VCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET bash ./install-vcpkg-deps.sh" >&2
+    exit 1
+fi
+
+export PKG_CONFIG_PATH="$VCPKG_PREFIX/lib/pkgconfig:$VCPKG_PREFIX/share/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+export PKG_CONFIG_LIBDIR="$VCPKG_PREFIX/lib/pkgconfig:$VCPKG_PREFIX/share/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
 
 if ! command -v meson >/dev/null 2>&1; then
     echo "meson not found in PATH" >&2
@@ -35,6 +45,7 @@ if ! command -v ninja >/dev/null 2>&1; then
 fi
 
 echo "Building with MINGW_PREFIX=$MINGW_PREFIX"
+echo "Using vcpkg triplet: $VCPKG_TARGET_TRIPLET"
 
 cd "$MPV_DIR"
 

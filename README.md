@@ -60,7 +60,24 @@ bash ./package-macos-runtime.sh --pkg-name libmpv-local-macos
 Download source and build in `MSYS2 MINGW64` shell:
 
 ```bash
+VCPKG_TARGET_TRIPLET=x64-mingw-dynamic bash ./install-vcpkg-deps.sh
 bash ./download.sh
+VCPKG_TARGET_TRIPLET=x64-mingw-dynamic bash ./build-mingw64.sh
+```
+
+The Windows build now uses ffmpeg built from source via `vcpkg` (overlay port `vcpkg-ports/ffmpeg`), instead of relying on a preinstalled ffmpeg package in `/mingw64`.
+
+If you use a custom install root:
+
+```bash
+VCPKG_INSTALLED_DIR=/path/to/vcpkg_installed \
+VCPKG_TARGET_TRIPLET=x64-mingw-dynamic \
+bash ./build-mingw64.sh
+```
+
+Old invocation remains valid when the variables are already exported:
+
+```bash
 bash ./build-mingw64.sh
 ```
 
