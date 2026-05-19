@@ -6,6 +6,13 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENDOR_DIR="$PROJECT_ROOT/vendor"
 MPV_DIR="$VENDOR_DIR/mpv"
 BUILD_DIR="$MPV_DIR/buildout"
+BUILD_MACHINE="$(uname -m)"
+case "$BUILD_MACHINE" in
+    arm64) FFMPEG_BUILD_ARCH="aarch64" ;;
+    *) FFMPEG_BUILD_ARCH="$BUILD_MACHINE" ;;
+esac
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-linux-$FFMPEG_BUILD_ARCH}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
 
 if [ ! -d "$MPV_DIR" ]; then
     echo "Missing mpv source: $MPV_DIR"
@@ -28,9 +35,17 @@ case "$BUILD_ARCH" in
         ;;
 esac
 
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+if [ -d "$FFMPEG_PREFIX" ]; then
+    export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export LD_LIBRARY_PATH="$FFMPEG_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+else
+    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+fi
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$PROJECT_ROOT/.cache}"
 mkdir -p "$XDG_CACHE_HOME"
+
+echo "Building with FFMPEG_PREFIX=$FFMPEG_PREFIX (exists: $([ -d "$FFMPEG_PREFIX" ] && echo yes || echo no))"
+echo "Using PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
 
 cd "$MPV_DIR"
 

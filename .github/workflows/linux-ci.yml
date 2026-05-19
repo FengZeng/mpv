@@ -1,10 +1,13 @@
 name: Build libmpv (Linux CI)
 
 on:
-  push:
-    branches: [ci]
-  pull_request:
-    branches: [ci]
+  workflow_dispatch:
+    inputs:
+      run_linux:
+        description: "Run Linux CI job"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -15,6 +18,7 @@ concurrency:
 
 jobs:
   linux-build:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_linux }}
     name: Build libmpv (${{ matrix.runner }} / ${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -33,15 +37,21 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential git curl python3 meson ninja-build pkg-config patchelf \
+            build-essential git curl python3 meson ninja-build pkg-config patchelf nasm \
             libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
-            libass-dev libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
-            libswresample-dev libswscale-dev \
+            libass-dev libopus-dev librubberband-dev \
+            zlib1g-dev libbz2-dev liblzma-dev \
             libpipewire-0.3-dev libpulse-dev \
-            libxss-dev libxpresent-dev 、
+            libxss-dev libxpresent-dev \
             libwayland-dev wayland-protocols libxkbcommon-dev \
             libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
-            librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev
+            libzimg-dev libplacebo-dev libvulkan-dev
+
+      - name: Install Meson
+        run: |
+          set -euo pipefail
+          bash ./ensure-meson.sh
+          echo "$GITHUB_WORKSPACE/vendor/meson-bin" >> "$GITHUB_PATH"
 
       - name: Show build environment
         run: |
@@ -53,6 +63,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build FFmpeg from source
+        run: bash ./build-ffmpeg.sh
 
       - name: Build mpv library
         run: bash ./build-linux.sh

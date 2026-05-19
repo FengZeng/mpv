@@ -7,6 +7,8 @@ VENDOR_DIR="$PROJECT_ROOT/vendor"
 MPV_DIR="$VENDOR_DIR/mpv"
 BUILD_DIR="$MPV_DIR/buildout"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-$(basename "$MINGW_PREFIX")}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
 
 if [ ! -d "$MPV_DIR" ]; then
     echo "Missing mpv source: $MPV_DIR"
@@ -22,8 +24,14 @@ fi
 
 export PATH="$MINGW_PREFIX/bin:$PATH"
 export PKG_CONFIG="$MINGW_PREFIX/bin/pkg-config"
-export PKG_CONFIG_PATH="$MINGW_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export PKG_CONFIG_LIBDIR="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+if [ -d "$FFMPEG_PREFIX" ]; then
+    export PATH="$FFMPEG_PREFIX/bin:$PATH"
+    export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export PKG_CONFIG_LIBDIR="$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+else
+    export PKG_CONFIG_PATH="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export PKG_CONFIG_LIBDIR="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+fi
 
 if ! command -v meson >/dev/null 2>&1; then
     echo "meson not found in PATH" >&2
@@ -35,6 +43,8 @@ if ! command -v ninja >/dev/null 2>&1; then
 fi
 
 echo "Building with MINGW_PREFIX=$MINGW_PREFIX"
+echo "Building with FFMPEG_PREFIX=$FFMPEG_PREFIX (exists: $([ -d "$FFMPEG_PREFIX" ] && echo yes || echo no))"
+echo "Using PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
 
 cd "$MPV_DIR"
 
@@ -44,6 +54,7 @@ MESON_ARGS=(
     -Dcplayer=false
     -Dvulkan=enabled
     -Dlua=enabled
+    -Dlibarchive=disabled
 )
 
 if [ ! -d "$BUILD_DIR" ]; then

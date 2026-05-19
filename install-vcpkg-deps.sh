@@ -87,12 +87,8 @@ EOF
     fi
 fi
 
-STATIC_PORTS=(
-    luajit
-    mujs
-)
-
 DYNAMIC_PORTS=(
+    luajit
     libarchive
     freetype
     fribidi
@@ -142,8 +138,6 @@ for port in "${UNAVAILABLE_OPTIONAL_PORTS[@]}"; do
     fi
 done
 
-STATIC_TRIPLET="${VCPKG_TARGET_TRIPLET}-static"
-STATIC_SPECS=()
 DYNAMIC_SPECS=()
 OVERLAY_PORT_ARGS=(
     --overlay-ports="$OVERLAY_PORTS_DIR"
@@ -153,15 +147,6 @@ if [ "$VCPKG_TARGET_TRIPLET" = "x64-osx-mp" ]; then
     OVERLAY_PORT_ARGS+=(--overlay-ports="$X64_OVERLAY_PORTS_DIR")
 fi
 
-if [ "${#STATIC_PORTS[@]}" -gt 0 ] && [ ! -f "$OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" ]; then
-    echo "Missing static triplet file: $OVERLAY_TRIPLETS_DIR/${STATIC_TRIPLET}.cmake" >&2
-    echo "Create the static triplet first or adjust VCPKG_TARGET_TRIPLET." >&2
-    exit 1
-fi
-
-for port in "${STATIC_PORTS[@]}"; do
-    STATIC_SPECS+=("${port}:${STATIC_TRIPLET}")
-done
 for port in "${DYNAMIC_PORTS[@]}"; do
     if [ "$port" = "ffmpeg" ]; then
         if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
@@ -175,22 +160,9 @@ for port in "${DYNAMIC_PORTS[@]}"; do
     fi
 done
 
-if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
-    echo "Step 1/2: installing static ports with triplet: $STATIC_TRIPLET"
-    echo "Static ports: ${STATIC_PORTS[*]}"
-    "$VCPKG_ROOT/vcpkg" install \
-        --recurse \
-        "${OVERLAY_PORT_ARGS[@]}" \
-        --overlay-triplets="$OVERLAY_TRIPLETS_DIR" \
-        --x-install-root="$VCPKG_INSTALLED_DIR" \
-        "${STATIC_SPECS[@]}"
-fi
-
 if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
-    echo "Step 2/2: installing dynamic ports with triplet: $VCPKG_TARGET_TRIPLET"
-    if [ "${#STATIC_SPECS[@]}" -gt 0 ]; then
-        echo "Dynamic ports: ${DYNAMIC_PORTS[*]}"
-    fi
+    echo "Installing dynamic ports with triplet: $VCPKG_TARGET_TRIPLET"
+    echo "Dynamic ports: ${DYNAMIC_PORTS[*]}"
     if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
         echo "ffmpeg features: ${FFMPEG_FEATURES[*]}"
     fi
@@ -202,7 +174,7 @@ if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
         "${DYNAMIC_SPECS[@]}"
 fi
 
-if [ "${#STATIC_SPECS[@]}" -eq 0 ] && [ "${#DYNAMIC_SPECS[@]}" -eq 0 ]; then
+if [ "${#DYNAMIC_SPECS[@]}" -eq 0 ]; then
     echo "No ports to install." >&2
     exit 1
 fi

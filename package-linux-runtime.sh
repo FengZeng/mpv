@@ -10,6 +10,13 @@ OUT_DIR="${PROJECT_ROOT}/release"
 PKG_NAME=""
 DEFAULT_PKG_NAME="libmpv-local-linux"
 ORIGINAL_ARGC="$#"
+BUILD_MACHINE="$(uname -m)"
+case "$BUILD_MACHINE" in
+  arm64) FFMPEG_BUILD_ARCH="aarch64" ;;
+  *) FFMPEG_BUILD_ARCH="$BUILD_MACHINE" ;;
+esac
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-linux-$FFMPEG_BUILD_ARCH}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
 
 usage() {
   cat <<'USAGE'
@@ -167,6 +174,7 @@ resolve_dep() {
     "$owner_dir" \
     "$LIB_DIR" \
     "$BUILD_DIR" \
+    "$FFMPEG_PREFIX/lib" \
     "/usr/local/lib" \
     "/usr/lib/${arch_dir}" \
     "/lib/${arch_dir}" \

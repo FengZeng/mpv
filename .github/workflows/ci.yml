@@ -160,15 +160,21 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential git curl python3 meson ninja-build pkg-config patchelf \
+            build-essential git curl python3 meson ninja-build pkg-config patchelf nasm \
             libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
-            libass-dev libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
-            libswresample-dev libswscale-dev \
+            libass-dev libopus-dev librubberband-dev \
+            zlib1g-dev libbz2-dev liblzma-dev \
             libpipewire-0.3-dev libpulse-dev \
             libxss-dev libxpresent-dev \
             libwayland-dev wayland-protocols libxkbcommon-dev \
             libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
-            librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev
+            libzimg-dev libplacebo-dev libvulkan-dev
+
+      - name: Install Meson
+        run: |
+          set -euo pipefail
+          bash ./ensure-meson.sh
+          echo "$GITHUB_WORKSPACE/vendor/meson-bin" >> "$GITHUB_PATH"
 
       - name: Show build environment
         run: |
@@ -180,6 +186,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build FFmpeg from source
+        run: bash ./build-ffmpeg.sh
 
       - name: Build mpv library
         run: bash ./build-linux.sh
@@ -212,50 +221,92 @@ jobs:
             libmpv-*.tar.gz.sha256
 
   mingw64-build:
-    name: Build libmpv (windows-2022 / mingw64)
-    runs-on: windows-2022
+    name: Build libmpv (${{ matrix.runner }} / ${{ matrix.msystem }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-2022
+            msystem: MINGW64
+            mingw_prefix: /mingw64
+            pkg_prefix: mingw-w64-x86_64
+            ffmpeg_arch: x86_64
+            ffmpeg_cc: gcc
+            ffmpeg_cxx: g++
+            ffmpeg_build_name: mingw64
+            package_suffix: mingw64-x86_64
+          - arch: arm64
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            mingw_prefix: /clangarm64
+            pkg_prefix: mingw-w64-clang-aarch64
+            ffmpeg_arch: aarch64
+            ffmpeg_cc: clang
+            ffmpeg_cxx: clang++
+            ffmpeg_build_name: clangarm64
+            package_suffix: clangarm64-arm64
+    env:
+      MINGW_PREFIX: ${{ matrix.mingw_prefix }}
+      FFMPEG_ARCH: ${{ matrix.ffmpeg_arch }}
+      FFMPEG_CC: ${{ matrix.ffmpeg_cc }}
+      FFMPEG_CXX: ${{ matrix.ffmpeg_cxx }}
+      FFMPEG_BUILD_NAME: ${{ matrix.ffmpeg_build_name }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup MSYS2 (MINGW64)
+      - name: Setup MSYS2 (${{ matrix.msystem }})
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.msystem }}
           update: true
           install: >-
             base-devel
             git
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-meson
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-python
-            mingw-w64-x86_64-ffmpeg
-            mingw-w64-x86_64-libass
-            mingw-w64-x86_64-luajit
-            mingw-w64-x86_64-uchardet
-            mingw-w64-x86_64-libplacebo
-            mingw-w64-x86_64-libarchive
-            mingw-w64-x86_64-libbluray
-            mingw-w64-x86_64-libcdio-paranoia
-            mingw-w64-x86_64-libdvdnav
-            mingw-w64-x86_64-rubberband
-            mingw-w64-x86_64-zimg
-            mingw-w64-x86_64-vulkan-loader
-            mingw-w64-x86_64-vulkan-headers
+            ${{ matrix.pkg_prefix }}-toolchain
+            ${{ matrix.pkg_prefix }}-meson
+            ${{ matrix.pkg_prefix }}-ninja
+            ${{ matrix.pkg_prefix }}-pkgconf
+            ${{ matrix.pkg_prefix }}-python
+            ${{ matrix.pkg_prefix }}-bzip2
+            ${{ matrix.pkg_prefix }}-libass
+            ${{ matrix.pkg_prefix }}-libjpeg-turbo
+            ${{ matrix.pkg_prefix }}-luajit
+            ${{ matrix.pkg_prefix }}-opus
+            ${{ matrix.pkg_prefix }}-uchardet
+            ${{ matrix.pkg_prefix }}-libplacebo
+            ${{ matrix.pkg_prefix }}-libbluray
+            ${{ matrix.pkg_prefix }}-libcdio-paranoia
+            ${{ matrix.pkg_prefix }}-libdvdnav
+            ${{ matrix.pkg_prefix }}-rubberband
+            ${{ matrix.pkg_prefix }}-zimg
+            ${{ matrix.pkg_prefix }}-zlib
+            ${{ matrix.pkg_prefix }}-xz
+            ${{ matrix.pkg_prefix }}-vulkan-loader
+            ${{ matrix.pkg_prefix }}-vulkan-headers
+
+      - name: Install x64 assembler
+        if: ${{ matrix.arch == 'x86_64' }}
+        shell: msys2 {0}
+        run: pacman --noconfirm -S --needed mingw-w64-x86_64-nasm
 
       - name: Show build environment
         shell: msys2 {0}
         run: |
           set -euo pipefail
           uname -a
-          gcc --version
+          cc --version || clang --version || gcc --version
           meson --version
           pkg-config --version
 
       - name: Download mpv source code
         shell: msys2 {0}
         run: bash ./download.sh
+
+      - name: Build FFmpeg from source
+        shell: msys2 {0}
+        run: bash ./build-ffmpeg.sh
 
       - name: Build mpv library
         shell: msys2 {0}
@@ -275,7 +326,7 @@ jobs:
             MPV_TAG="${BASH_REMATCH[1]}"
             RELEASE_REV="r0"
           fi
-          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-windows-mingw64-x86_64"
+          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-windows-${{ matrix.package_suffix }}"
           bash ./package-mingw64-runtime.sh \
             --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
             --out-dir "$GITHUB_WORKSPACE/release" \
@@ -284,7 +335,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libmpv-mingw64-${{ github.run_id }}-x86_64
+          name: libmpv-${{ matrix.package_suffix }}-${{ github.run_id }}
           path: |
             libmpv-*.tar.gz
             libmpv-*.tar.gz.sha256

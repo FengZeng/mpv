@@ -11,6 +11,8 @@ PKG_NAME=""
 DEFAULT_PKG_NAME="libmpv-local-windows-mingw64-x86_64"
 ORIGINAL_ARGC="$#"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-$(basename "$MINGW_PREFIX")}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
 
 usage() {
   cat <<'USAGE'
@@ -152,7 +154,7 @@ resolve_dep() {
     return 0
   fi
 
-  for path_dir in "$BIN_DIR" "$BUILD_DIR" "$MINGW_PREFIX/bin"; do
+  for path_dir in "$BIN_DIR" "$BUILD_DIR" "$FFMPEG_PREFIX/bin" "$MINGW_PREFIX/bin"; do
     [ -n "$path_dir" ] || continue
     candidate="${path_dir}/${dep}"
     if [ -e "$candidate" ]; then
@@ -287,6 +289,9 @@ copy_soia_utils_libs() {
   case "$arch" in
     x86_64)
       triple="x86_64-pc-windows-msvc"
+      ;;
+    aarch64|arm64)
+      triple="aarch64-pc-windows-msvc"
       ;;
     *)
       echo "Unsupported Windows architecture for soia_utils: $arch" >&2

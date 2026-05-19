@@ -61,6 +61,7 @@ Download source and build in `MSYS2 MINGW64` shell:
 
 ```bash
 bash ./download.sh
+bash ./build-ffmpeg.sh
 bash ./build-mingw64.sh
 ```
 
@@ -77,21 +78,24 @@ Install dependencies on Ubuntu/Debian (example):
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
-  build-essential git curl python3 meson ninja-build pkg-config \
+  build-essential git curl python3 meson ninja-build pkg-config nasm \
   libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
-  libass-dev libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
-  libswresample-dev libswscale-dev \
+  libass-dev libopus-dev librubberband-dev \
+  zlib1g-dev libbz2-dev liblzma-dev \
   libpipewire-0.3-dev libpulse-dev \
   libxss-dev libxpresent-dev \
   libwayland-dev wayland-protocols libxkbcommon-dev \
   libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
-  librubberband-dev libzimg-dev libplacebo-dev libvulkan-dev patchelf
+  libzimg-dev libplacebo-dev libvulkan-dev patchelf
 ```
 
 Download source and build:
 
 ```bash
+export PATH="$PWD/vendor/meson-bin:$PATH"
+bash ./ensure-meson.sh
 bash ./download.sh
+bash ./build-ffmpeg.sh
 bash ./build-linux.sh
 ```
 
