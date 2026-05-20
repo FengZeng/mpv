@@ -13,6 +13,7 @@ ORIGINAL_ARGC="$#"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
 FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-$(basename "$MINGW_PREFIX")}"
 FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+TARGET_ARCH="${TARGET_ARCH:-}"
 
 usage() {
   cat <<'USAGE'
@@ -92,6 +93,101 @@ mark_visited() {
 
 upper() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+normalize_windows_arch() {
+  case "$(lower "$1")" in
+    x86_64|amd64|x64|mingw64|ucrt64|clang64)
+      echo "x86_64"
+      ;;
+    aarch64|arm64|clangarm64|clang-aarch64)
+      echo "aarch64"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+infer_windows_target_arch() {
+  local arch prefix_name msystem ffmpeg_name pkg_name
+
+  if [ -n "$TARGET_ARCH" ] && normalize_windows_arch "$TARGET_ARCH"; then
+    return 0
+  fi
+
+  prefix_name="$(basename "$MINGW_PREFIX")"
+  if normalize_windows_arch "$prefix_name"; then
+    return 0
+  fi
+
+  msystem="${MSYSTEM:-}"
+  if [ -n "$msystem" ] && normalize_windows_arch "$msystem"; then
+    return 0
+  fi
+
+  if [ -n "${FFMPEG_ARCH:-}" ] && normalize_windows_arch "$FFMPEG_ARCH"; then
+    return 0
+  fi
+
+  ffmpeg_name="$(lower "$FFMPEG_BUILD_NAME")"
+  case "$ffmpeg_name" in
+    *clangarm64*|*aarch64*|*arm64*)
+      echo "aarch64"
+      return 0
+      ;;
+    *mingw64*|*x86_64*|*x64*)
+      echo "x86_64"
+      return 0
+      ;;
+  esac
+
+  pkg_name="$(lower "$PKG_NAME")"
+  case "$pkg_name" in
+    *clangarm64*|*aarch64*|*arm64*)
+      echo "aarch64"
+      return 0
+      ;;
+    *mingw64*|*x86_64*|*x64*)
+      echo "x86_64"
+      return 0
+      ;;
+  esac
+
+  normalize_windows_arch "$(uname -m)"
+}
+
+verify_windows_dll_arch() {
+  local path="$1"
+  local arch="$2"
+  local info
+
+  if ! command -v file >/dev/null 2>&1; then
+    echo "Warning: file command not found; skipping arch check for $path" >&2
+    return 0
+  fi
+
+  info="$(file "$path")"
+  case "$arch" in
+    x86_64)
+      if [[ "$info" == *"x86-64"* ]]; then
+        return 0
+      fi
+      ;;
+    aarch64)
+      if [[ "$info" == *"Aarch64"* ]] || [[ "$info" == *"ARM64"* ]]; then
+        return 0
+      fi
+      ;;
+  esac
+
+  echo "Windows DLL arch mismatch for target ${arch}: $path" >&2
+  echo "$info" >&2
+  return 1
 }
 
 is_system_dep() {
@@ -285,7 +381,7 @@ copy_root_mpv_link_libs() {
 
 copy_soia_utils_libs() {
   local arch triple dll_src import_lib_src
-  arch="$(uname -m)"
+  arch="$(infer_windows_target_arch)"
   case "$arch" in
     x86_64)
       triple="x86_64-pc-windows-msvc"
@@ -299,12 +395,15 @@ copy_soia_utils_libs() {
       ;;
   esac
 
+  echo "Packaging soia_utils for Windows target arch: $arch"
   dll_src="${SOIA_UTILS_DIR}/${triple}/libsoia_utils.dll"
   if [ ! -f "$dll_src" ]; then
     echo "soia_utils DLL not found for ${triple}: $dll_src" >&2
     exit 1
   fi
+  verify_windows_dll_arch "$dll_src" "$arch"
   cp -vP "$dll_src" "$BIN_DIR/"
+  verify_windows_dll_arch "$BIN_DIR/$(basename "$dll_src")" "$arch"
 
   import_lib_src="${SOIA_UTILS_DIR}/${triple}/libsoia_utils.dll.a"
   if [ -f "$import_lib_src" ]; then
@@ -324,6 +423,11 @@ copy_config_data() {
 
 echo "Preparing mingw64 runtime bundle from: $BUILD_DIR"
 copy_root_mpv_dlls
+TARGET_ARCH="$(infer_windows_target_arch)"
+for file in "$BIN_DIR"/libmpv*.dll; do
+  [ -e "$file" ] || continue
+  verify_windows_dll_arch "$file" "$TARGET_ARCH"
+done
 copy_root_mpv_link_libs
 copy_soia_utils_libs
 copy_config_data
