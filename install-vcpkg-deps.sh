@@ -93,10 +93,8 @@ DYNAMIC_PORTS=(
     freetype
     fribidi
     harfbuzz
-    dav1d
     lcms
     libass
-    ffmpeg
     uchardet
     vulkan
     libbluray
@@ -107,23 +105,6 @@ DYNAMIC_PORTS=(
     libiconv
     shaderc
     libplacebo
-)
-
-# Explicit ffmpeg feature set to avoid "minimal" defaults.
-# Keep this aligned with DYNAMIC_PORTS dependencies and project needs.
-FFMPEG_FEATURES=(
-    ass
-    bzip2
-    dav1d
-    drawtext
-    freetype
-    fribidi
-    iconv
-    lzma
-    opus
-    rubberband
-    vulkan
-    zlib
 )
 
 UNAVAILABLE_OPTIONAL_PORTS=(
@@ -148,24 +129,12 @@ if [ "$VCPKG_TARGET_TRIPLET" = "x64-osx-mp" ]; then
 fi
 
 for port in "${DYNAMIC_PORTS[@]}"; do
-    if [ "$port" = "ffmpeg" ]; then
-        if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
-            ffmpeg_features_csv="$(IFS=,; echo "${FFMPEG_FEATURES[*]}")"
-            DYNAMIC_SPECS+=("ffmpeg[${ffmpeg_features_csv}]:${VCPKG_TARGET_TRIPLET}")
-        else
-            DYNAMIC_SPECS+=("ffmpeg:${VCPKG_TARGET_TRIPLET}")
-        fi
-    else
-        DYNAMIC_SPECS+=("${port}:${VCPKG_TARGET_TRIPLET}")
-    fi
+    DYNAMIC_SPECS+=("${port}:${VCPKG_TARGET_TRIPLET}")
 done
 
 if [ "${#DYNAMIC_SPECS[@]}" -gt 0 ]; then
     echo "Installing dynamic ports with triplet: $VCPKG_TARGET_TRIPLET"
     echo "Dynamic ports: ${DYNAMIC_PORTS[*]}"
-    if [ "${#FFMPEG_FEATURES[@]}" -gt 0 ]; then
-        echo "ffmpeg features: ${FFMPEG_FEATURES[*]}"
-    fi
     "$VCPKG_ROOT/vcpkg" install \
         --recurse \
         "${OVERLAY_PORT_ARGS[@]}" \

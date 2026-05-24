@@ -78,6 +78,12 @@ if [ -n "$BREW_PREFIX" ]; then
 fi
 VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
 VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-}"
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-macos-${MPV_TARGET_ARCH:-$(uname -m)}}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+FFMPEG_LIB_DIR=""
+if [ -d "$FFMPEG_PREFIX/lib" ]; then
+  FFMPEG_LIB_DIR="$FFMPEG_PREFIX/lib"
+fi
 if [ -z "$VCPKG_TARGET_TRIPLET" ]; then
   case "${MPV_TARGET_ARCH:-$(uname -m)}" in
     arm64)
@@ -165,7 +171,7 @@ resolve_dep() {
       ;;
   esac
 
-  for search_dir in "$owner_dir" "$LIB_DIR" "$BUILD_DIR" "$VCPKG_LIB_DIR" "$BREW_LIB_DIR" /opt/homebrew/lib /usr/local/lib; do
+  for search_dir in "$owner_dir" "$LIB_DIR" "$BUILD_DIR" "$FFMPEG_LIB_DIR" "$VCPKG_LIB_DIR" "$BREW_LIB_DIR" /opt/homebrew/lib /usr/local/lib; do
     [ -n "$search_dir" ] || continue
     candidate="${search_dir}/$(basename "$dep")"
     [ -e "$candidate" ] && { echo "$candidate"; return 0; }

@@ -1,34 +1,33 @@
-name: Build libmpv (Linux CI)
+name: Manual Build - Linux
 
 on:
   workflow_dispatch:
     inputs:
-      run_linux:
-        description: "Run Linux CI job"
-        required: false
-        default: false
-        type: boolean
+      arch:
+        description: "Architecture to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - x64
+          - arm64
 
 permissions:
   contents: read
 
 concurrency:
-  group: linux-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: linux-manual-${{ github.ref }}-${{ inputs.arch }}
+  cancel-in-progress: false
 
 jobs:
-  linux-build:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_linux }}
-    name: Build libmpv (${{ matrix.runner }} / ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: x86_64
-          - runner: ubuntu-24.04-arm
-            arch: arm64
+  linux-x64:
+    if: ${{ inputs.arch == 'all' || inputs.arch == 'x64' }}
+    name: Build libmpv (Linux / x64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
@@ -73,17 +72,8 @@ jobs:
       - name: Prepare artifacts
         run: |
           set -euo pipefail
-          REF_SAFE="${GITHUB_REF_NAME//\//-}"
-          MPV_TAG="$REF_SAFE"
-          RELEASE_REV="dev"
-          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
-            MPV_TAG="${BASH_REMATCH[1]}"
-            RELEASE_REV="r${BASH_REMATCH[2]}"
-          elif [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            MPV_TAG="${BASH_REMATCH[1]}"
-            RELEASE_REV="r0"
-          fi
-          PKG_NAME="libmpv-${MPV_TAG}-${RELEASE_REV}-linux-${{ matrix.arch }}"
+          LABEL="manual-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}"
+          PKG_NAME="libmpv-${LABEL}-linux-x64"
           bash ./package-linux-runtime.sh \
             --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
             --out-dir "$GITHUB_WORKSPACE/release" \
@@ -92,7 +82,75 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libmpv-linux-ci-${{ github.run_id }}-${{ matrix.arch }}
+          name: libmpv-manual-linux-x64-${{ github.run_number }}
           path: |
             libmpv-*.tar.gz
             libmpv-*.tar.gz.sha256
+          compression-level: 0
+
+  linux-arm64:
+    if: ${{ inputs.arch == 'all' || inputs.arch == 'arm64' }}
+    name: Build libmpv (Linux / arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install apt dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git curl python3 meson ninja-build pkg-config patchelf nasm \
+            libfreetype-dev libfribidi-dev liblcms2-dev libluajit-5.1-dev \
+            libass-dev libopus-dev librubberband-dev \
+            zlib1g-dev libbz2-dev liblzma-dev \
+            libpipewire-0.3-dev libpulse-dev \
+            libxss-dev libxpresent-dev \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
+            libzimg-dev libplacebo-dev libvulkan-dev
+
+      - name: Install Meson
+        run: |
+          set -euo pipefail
+          bash ./ensure-meson.sh
+          echo "$GITHUB_WORKSPACE/vendor/meson-bin" >> "$GITHUB_PATH"
+
+      - name: Show build environment
+        run: |
+          set -euo pipefail
+          uname -a
+          gcc --version
+          meson --version
+          pkg-config --version
+
+      - name: Download mpv source code
+        run: bash ./download.sh
+
+      - name: Build FFmpeg from source
+        run: bash ./build-ffmpeg.sh
+
+      - name: Build mpv library
+        run: bash ./build-linux.sh
+
+      - name: Prepare artifacts
+        run: |
+          set -euo pipefail
+          LABEL="manual-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}"
+          PKG_NAME="libmpv-${LABEL}-linux-arm64"
+          bash ./package-linux-runtime.sh \
+            --build-dir "$GITHUB_WORKSPACE/vendor/mpv/buildout" \
+            --out-dir "$GITHUB_WORKSPACE/release" \
+            --pkg-name "$PKG_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-manual-linux-arm64-${{ github.run_number }}
+          path: |
+            libmpv-*.tar.gz
+            libmpv-*.tar.gz.sha256
+          compression-level: 0

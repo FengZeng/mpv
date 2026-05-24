@@ -74,6 +74,14 @@ if [ ! -d "$VCPKG_PREFIX" ] && [ -d "$VCPKG_STATIC_PREFIX" ]; then
     VCPKG_PREFIX="$VCPKG_STATIC_PREFIX"
 fi
 
+FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-macos-$MPV_TARGET_ARCH}"
+FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+if [ ! -d "$FFMPEG_PREFIX" ]; then
+    echo "Missing FFmpeg build prefix: $FFMPEG_PREFIX" >&2
+    echo "Run: MPV_TARGET_ARCH=$MPV_TARGET_ARCH bash ./build-ffmpeg.sh" >&2
+    exit 1
+fi
+
 if [ -z "${MACOSX_DEPLOYMENT_TARGET:-}" ]; then
     export MACOSX_DEPLOYMENT_TARGET="13.0"
 else
@@ -91,6 +99,7 @@ if [ -d "$VCPKG_STATIC_PREFIX" ]; then
     # Put static triplet first so pkg-config prefers static-enabled metadata when both exist.
     PKG_CONFIG_DIRS="$VCPKG_STATIC_PREFIX/lib/pkgconfig:$VCPKG_STATIC_PREFIX/share/pkgconfig:$PKG_CONFIG_DIRS"
 fi
+PKG_CONFIG_DIRS="$FFMPEG_PREFIX/lib/pkgconfig:$FFMPEG_PREFIX/share/pkgconfig:$PKG_CONFIG_DIRS"
 export PKG_CONFIG_PATH="$PKG_CONFIG_DIRS${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export PKG_CONFIG_LIBDIR="$PKG_CONFIG_DIRS"
 if ! command -v pkg-config >/dev/null 2>&1; then

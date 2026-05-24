@@ -1,11 +1,8 @@
 name: Build libmpv
 
 on:
-  pull_request:
   push:
-    branches: [main, vcpkg]
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -106,6 +103,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build FFmpeg from source
+        run: bash ./build-ffmpeg.sh
 
       - name: Build mpv library
         run: bash ./build-macos.sh

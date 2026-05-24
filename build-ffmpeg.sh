@@ -11,13 +11,16 @@ DAV1D_TARBALL="$VENDOR_DIR/dav1d-1.5.3.tar.gz"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
 BUILD_OS="$(uname -s)"
 BUILD_MACHINE="$(uname -m)"
-case "$BUILD_MACHINE" in
+BUILD_TARGET_MACHINE="${MPV_TARGET_ARCH:-$BUILD_MACHINE}"
+case "$BUILD_TARGET_MACHINE" in
     arm64) DEFAULT_FFMPEG_ARCH="aarch64" ;;
-    *) DEFAULT_FFMPEG_ARCH="$BUILD_MACHINE" ;;
+    *) DEFAULT_FFMPEG_ARCH="$BUILD_TARGET_MACHINE" ;;
 esac
 FFMPEG_ARCH="${FFMPEG_ARCH:-$DEFAULT_FFMPEG_ARCH}"
 if [[ "$BUILD_OS" == MINGW* || "$BUILD_OS" == MSYS* || "$BUILD_OS" == CYGWIN* ]]; then
     DEFAULT_FFMPEG_BUILD_NAME="$(basename "$MINGW_PREFIX")"
+elif [ "$BUILD_OS" = "Darwin" ]; then
+    DEFAULT_FFMPEG_BUILD_NAME="macos-$BUILD_TARGET_MACHINE"
 else
     DEFAULT_FFMPEG_BUILD_NAME="linux-$FFMPEG_ARCH"
 fi
@@ -27,6 +30,8 @@ DAV1D_PREFIX="${DAV1D_PREFIX:-$FFMPEG_PREFIX}"
 FFMPEG_JOBS="${FFMPEG_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 FFMPEG_CC="${FFMPEG_CC:-cc}"
 FFMPEG_CXX="${FFMPEG_CXX:-c++}"
+DAV1D_MESON_CROSS_ARGS=()
+FFMPEG_CROSS_ARGS=()
 
 FFMPEG_SOURCE_URL="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n8.1.tar.gz"
 DAV1D_SOURCE_URL="https://github.com/videolan/dav1d/archive/refs/tags/1.5.3.tar.gz"
@@ -54,6 +59,66 @@ else
     export PKG_CONFIG_PATH="$PKG_CONFIG_SYSTEM_PATH:${PKG_CONFIG_PATH:-}"
 fi
 
+if [ "$BUILD_OS" = "Darwin" ]; then
+    TARGET_OS="darwin"
+    STRIP_PATTERN="*.dylib"
+    VCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR:-$PROJECT_ROOT/vcpkg_installed}"
+    if [ -z "${VCPKG_TARGET_TRIPLET:-}" ]; then
+        case "$BUILD_TARGET_MACHINE" in
+            arm64) VCPKG_TARGET_TRIPLET="arm64-osx-mp" ;;
+            x86_64) VCPKG_TARGET_TRIPLET="x64-osx-mp" ;;
+        esac
+    fi
+    VCPKG_PREFIX="$VCPKG_INSTALLED_DIR/$VCPKG_TARGET_TRIPLET"
+    if [ -d "$VCPKG_PREFIX" ]; then
+        PKG_CONFIG_SYSTEM_PATH="$VCPKG_PREFIX/lib/pkgconfig:$VCPKG_PREFIX/share/pkgconfig:$PKG_CONFIG_SYSTEM_PATH"
+        export PKG_CONFIG_PATH="$PKG_CONFIG_SYSTEM_PATH:${PKG_CONFIG_PATH:-}"
+        export PKG_CONFIG_LIBDIR="$PKG_CONFIG_SYSTEM_PATH"
+    fi
+    if [ -z "${MACOSX_DEPLOYMENT_TARGET:-}" ]; then
+        export MACOSX_DEPLOYMENT_TARGET="13.0"
+    fi
+    MIN_OS_FLAG="-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+    ARCH_FLAG="-arch ${BUILD_TARGET_MACHINE}"
+    export CFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${CFLAGS:-}"
+    export CXXFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${CXXFLAGS:-}"
+    export LDFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${LDFLAGS:-}"
+
+    if [ "$BUILD_TARGET_MACHINE" != "$BUILD_MACHINE" ]; then
+        case "$BUILD_TARGET_MACHINE" in
+            arm64) MESON_CPU_FAMILY="aarch64" ;;
+            x86_64) MESON_CPU_FAMILY="x86_64" ;;
+            *)
+                echo "Unsupported macOS cross target architecture: $BUILD_TARGET_MACHINE" >&2
+                exit 1
+                ;;
+        esac
+        CROSS_FILE="$VENDOR_DIR/meson-ffmpeg-cross-${BUILD_TARGET_MACHINE}.ini"
+        cat > "$CROSS_FILE" <<EOF
+[binaries]
+c = '$FFMPEG_CC'
+cpp = '$FFMPEG_CXX'
+ar = 'ar'
+strip = 'strip'
+pkg-config = '$PKG_CONFIG'
+
+[host_machine]
+system = 'darwin'
+cpu_family = '${MESON_CPU_FAMILY}'
+cpu = '${BUILD_TARGET_MACHINE}'
+endian = 'little'
+
+[properties]
+needs_exe_wrapper = true
+EOF
+        DAV1D_MESON_CROSS_ARGS+=(--cross-file "$CROSS_FILE")
+        FFMPEG_CROSS_ARGS+=(
+            --enable-cross-compile
+            --host-cc=cc
+        )
+    fi
+fi
+
 for tool in curl tar make meson ninja pkg-config strip "$FFMPEG_CC" "$FFMPEG_CXX"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool not found in PATH" >&2
@@ -77,7 +142,8 @@ CC="$FFMPEG_CC" CXX="$FFMPEG_CXX" meson setup "$DAV1D_DIR/buildout" "$DAV1D_DIR"
     --libdir=lib \
     -Db_staticpic=true \
     -Denable_tools=false \
-    -Denable_tests=false
+    -Denable_tests=false \
+    "${DAV1D_MESON_CROSS_ARGS[@]}"
 meson compile -C "$DAV1D_DIR/buildout" -j "$FFMPEG_JOBS"
 meson install -C "$DAV1D_DIR/buildout"
 
@@ -124,6 +190,7 @@ CONFIGURE_ARGS=(
     --enable-bzlib
     --enable-lzma
     --enable-zlib
+    "${FFMPEG_CROSS_ARGS[@]}"
 )
 
 if [ "$TARGET_OS" != "mingw32" ]; then
