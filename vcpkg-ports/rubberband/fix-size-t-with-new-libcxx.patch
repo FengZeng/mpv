@@ -1,0 +1,13 @@
+diff --git a/src/common/mathmisc.h b/src/common/mathmisc.h
+index 940ce94..3f567e4 100644
+--- a/src/common/mathmisc.h
++++ b/src/common/mathmisc.h
+@@ -22,6 +22,8 @@
+ #ifndef RUBBERBAND_MATHMISC_H
+ #define RUBBERBAND_MATHMISC_H
+ 
++#include <stddef.h>
++
+ #include "sysutils.h"
+ 
+ #ifndef M_PI
