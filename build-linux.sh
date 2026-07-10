@@ -56,7 +56,7 @@ MESON_ARGS=(
     -Dlua=enabled
     -Dvulkan=enabled
     -Dwayland=enabled
-    -Dx11=enabled
+    -Dx11=disabled
     -Dpulse=enabled
 )
 

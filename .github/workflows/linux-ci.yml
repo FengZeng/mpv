@@ -42,7 +42,7 @@ jobs:
             libass-dev libopus-dev librubberband-dev \
             zlib1g-dev libbz2-dev liblzma-dev \
             libpipewire-0.3-dev libpulse-dev \
-            libxss-dev libxpresent-dev \
+            libxss-dev \
             libwayland-dev wayland-protocols libxkbcommon-dev \
             libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
             libzimg-dev libplacebo-dev libvulkan-dev

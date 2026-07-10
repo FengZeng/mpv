@@ -131,6 +131,9 @@ is_system_dep_path() {
     libEGL.so.1)
       return 0
       ;;
+    libpulse.so.0)
+      return 0
+      ;;
     libnsl.so.1|libutil.so.1|libcrypt.so.1)
       return 0
       ;;
