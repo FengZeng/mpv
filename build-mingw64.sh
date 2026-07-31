@@ -49,7 +49,7 @@ echo "Using PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
 cd "$MPV_DIR"
 
 MESON_ARGS=(
-    --buildtype=release
+    --buildtype=debug
     -Dlibmpv=true
     -Dcplayer=false
     -Dvulkan=enabled
