@@ -116,6 +116,7 @@ CONFIGURE_ARGS=(
     --disable-encoders
     --enable-encoder=mjpeg
     --disable-muxers
+    --enable-muxer=spdif
     --enable-gpl
     --enable-libass
     --enable-libdav1d
@@ -139,6 +140,11 @@ if ! ./configure "${CONFIGURE_ARGS[@]}"; then
         cat ffbuild/config.log >&2
         echo "==== end ffbuild/config.log ====" >&2
     fi
+    exit 1
+fi
+
+if ! grep -Eq '^#define CONFIG_SPDIF_MUXER 1$' config_components.h; then
+    echo "FFmpeg spdif muxer is required for mpv audio passthrough" >&2
     exit 1
 fi
 
