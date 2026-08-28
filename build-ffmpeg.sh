@@ -115,8 +115,10 @@ CONFIGURE_ARGS=(
     --disable-openssl
     --disable-encoders
     --enable-encoder=mjpeg
+    --enable-encoder=aac
     --disable-muxers
     --enable-muxer=spdif
+    --enable-muxer=mpegts
     --enable-gpl
     --enable-libass
     --enable-libdav1d
@@ -145,6 +147,16 @@ fi
 
 if ! grep -Eq '^#define CONFIG_SPDIF_MUXER 1$' config_components.h; then
     echo "FFmpeg spdif muxer is required for mpv audio passthrough" >&2
+    exit 1
+fi
+
+if ! grep -Eq '^#define CONFIG_MPEGTS_MUXER 1$' config_components.h; then
+    echo "FFmpeg mpegts muxer is required" >&2
+    exit 1
+fi
+
+if ! grep -Eq '^#define CONFIG_AAC_ENCODER 1$' config_components.h; then
+    echo "FFmpeg aac encoder is required" >&2
     exit 1
 fi
 
