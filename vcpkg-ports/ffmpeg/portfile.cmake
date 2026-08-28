@@ -47,6 +47,9 @@ elseif(VCPKG_TARGET_IS_WINDOWS)
     string(APPEND OPTIONS " --target-os=win32 --enable-w32threads --enable-d3d11va --enable-d3d12va --enable-dxva2 --enable-mediafoundation")
 elseif(VCPKG_TARGET_IS_OSX)
     string(APPEND OPTIONS " --target-os=darwin --enable-appkit --enable-avfoundation --enable-coreimage --enable-audiotoolbox --enable-videotoolbox")
+    # Keep the macOS build's media capabilities explicit and aligned with the
+    # standalone FFmpeg build used by the other targets.
+    string(APPEND OPTIONS " --disable-encoders --enable-encoder=mjpeg --enable-encoder=aac --disable-muxers --enable-muxer=spdif --enable-muxer=mpegts")
 elseif(VCPKG_TARGET_IS_IOS)
     string(APPEND OPTIONS " --enable-avfoundation --enable-coreimage --enable-videotoolbox")
 elseif(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "Android")

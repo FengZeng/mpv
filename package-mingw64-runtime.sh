@@ -22,7 +22,8 @@ Usage:
 
 Build a self-contained mingw64 runtime package:
   - libmpv DLLs
-  - libmpv import/static link libs (.lib/.a/.dll.a), if present
+  - FFmpeg runtime DLLs (avcodec/avformat/avutil/swresample/swscale, etc.)
+  - libmpv and FFmpeg import/static link libs (.lib/.a/.dll.a), if present
   - all non-system DLL dependencies (recursive)
   - SHA256 checksum
 Defaults:
@@ -356,6 +357,40 @@ copy_root_mpv_dlls() {
   fi
 }
 
+copy_root_ffmpeg_dlls() {
+  local found=0
+  local src name
+
+  if [ ! -d "$FFMPEG_PREFIX/bin" ]; then
+    echo "Warning: FFmpeg bin directory not found: $FFMPEG_PREFIX/bin" >&2
+    return 0
+  fi
+
+  # FFmpeg's MinGW build names shared libraries as avcodec-*.dll,
+  # avformat-*.dll, swscale-*.dll, etc. Include both the usual names and
+  # lib-prefixed variants so this also works with alternate toolchains.
+  shopt -s nullglob
+  for src in \
+    "$FFMPEG_PREFIX/bin"/av*.dll \
+    "$FFMPEG_PREFIX/bin"/sw*.dll \
+    "$FFMPEG_PREFIX/bin"/postproc*.dll \
+    "$FFMPEG_PREFIX/bin"/libav*.dll \
+    "$FFMPEG_PREFIX/bin"/libsw*.dll \
+    "$FFMPEG_PREFIX/bin"/libpostproc*.dll; do
+    if [ -f "$src" ] || [ -L "$src" ]; then
+      name="$(basename "$src")"
+      if [ ! -e "$BIN_DIR/$name" ]; then
+        cp -vP "$src" "$BIN_DIR/"
+      fi
+      found=1
+    fi
+  done
+
+  if [ "$found" -eq 0 ]; then
+    echo "Warning: no FFmpeg runtime DLLs found in $FFMPEG_PREFIX/bin" >&2
+  fi
+}
+
 copy_root_mpv_link_libs() {
   local found=0
   local src name
@@ -376,6 +411,40 @@ copy_root_mpv_link_libs() {
   done
   if [ "$found" -eq 0 ]; then
     echo "Warning: no libmpv link libraries (.lib/.a/.dll.a) found in $BUILD_DIR" >&2
+  fi
+}
+
+copy_root_ffmpeg_link_libs() {
+  local found=0
+  local src name
+
+  if [ ! -d "$FFMPEG_PREFIX/lib" ]; then
+    echo "Warning: FFmpeg lib directory not found: $FFMPEG_PREFIX/lib" >&2
+    return 0
+  fi
+
+  shopt -s nullglob
+  for src in \
+    "$FFMPEG_PREFIX/lib"/libav*.dll.a \
+    "$FFMPEG_PREFIX/lib"/libsw*.dll.a \
+    "$FFMPEG_PREFIX/lib"/libpostproc*.dll.a \
+    "$FFMPEG_PREFIX/lib"/libav*.a \
+    "$FFMPEG_PREFIX/lib"/libsw*.a \
+    "$FFMPEG_PREFIX/lib"/libpostproc*.a \
+    "$FFMPEG_PREFIX/lib"/av*.lib \
+    "$FFMPEG_PREFIX/lib"/sw*.lib \
+    "$FFMPEG_PREFIX/lib"/postproc*.lib; do
+    if [ -f "$src" ] || [ -L "$src" ]; then
+      name="$(basename "$src")"
+      if [ ! -e "$LIB_DIR/$name" ]; then
+        cp -vP "$src" "$LIB_DIR/"
+      fi
+      found=1
+    fi
+  done
+
+  if [ "$found" -eq 0 ]; then
+    echo "Warning: no FFmpeg link libraries (.lib/.a/.dll.a) found in $FFMPEG_PREFIX/lib" >&2
   fi
 }
 
@@ -423,16 +492,30 @@ copy_config_data() {
 
 echo "Preparing mingw64 runtime bundle from: $BUILD_DIR"
 copy_root_mpv_dlls
+copy_root_ffmpeg_dlls
 TARGET_ARCH="$(infer_windows_target_arch)"
 for file in "$BIN_DIR"/libmpv*.dll; do
   [ -e "$file" ] || continue
   verify_windows_dll_arch "$file" "$TARGET_ARCH"
 done
+for file in "$BIN_DIR"/av*.dll "$BIN_DIR"/sw*.dll "$BIN_DIR"/postproc*.dll "$BIN_DIR"/libav*.dll "$BIN_DIR"/libsw*.dll "$BIN_DIR"/libpostproc*.dll; do
+  [ -e "$file" ] || continue
+  verify_windows_dll_arch "$file" "$TARGET_ARCH"
+done
 copy_root_mpv_link_libs
+copy_root_ffmpeg_link_libs
 copy_soia_utils_libs
 copy_config_data
 
-for file in "$BIN_DIR"/libmpv*.dll "$BIN_DIR"/libsoia_utils*.dll; do
+for file in \
+  "$BIN_DIR"/libmpv*.dll \
+  "$BIN_DIR"/libsoia_utils*.dll \
+  "$BIN_DIR"/av*.dll \
+  "$BIN_DIR"/sw*.dll \
+  "$BIN_DIR"/postproc*.dll \
+  "$BIN_DIR"/libav*.dll \
+  "$BIN_DIR"/libsw*.dll \
+  "$BIN_DIR"/libpostproc*.dll; do
   [ -e "$file" ] || continue
   scan_and_copy_deps "$file"
 done
