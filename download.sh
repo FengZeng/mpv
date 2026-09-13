@@ -85,6 +85,7 @@ rm -rf "$MPV_DIR"
 mkdir -p "$MPV_DIR"
 curl --fail --location --retry 3 --retry-delay 2 --output "$TARBALL" "$SOURCE_URL"
 tar -zxf "$TARBALL" -C "$MPV_DIR" --strip-components=1 && apply_patch
+patch -d vendor/mpv -p1 -N < patches/mpv/0001-ao_coreaudio-fix-init-failure-on-macOS-27.patch
 echo "$MPV_VERSION" > "$VERSION_FILE"
 rm -f "$TARBALL"
 echo "Done: $MPV_DIR"
