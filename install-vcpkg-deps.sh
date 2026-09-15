@@ -106,7 +106,6 @@ DYNAMIC_PORTS=(
     libjpeg-turbo
     libiconv
     shaderc
-    libplacebo
 )
 
 # Explicit ffmpeg feature set to avoid "minimal" defaults.

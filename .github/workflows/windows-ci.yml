@@ -73,7 +73,6 @@ jobs:
             ${{ matrix.pkg_prefix }}-luajit
             ${{ matrix.pkg_prefix }}-opus
             ${{ matrix.pkg_prefix }}-uchardet
-            ${{ matrix.pkg_prefix }}-libplacebo
             ${{ matrix.pkg_prefix }}-libbluray
             ${{ matrix.pkg_prefix }}-libcdio-paranoia
             ${{ matrix.pkg_prefix }}-libdvdnav
@@ -101,6 +100,10 @@ jobs:
       - name: Download mpv source code
         shell: msys2 {0}
         run: bash ./download.sh
+
+      - name: Build libplacebo from source
+        shell: msys2 {0}
+        run: bash ./build-libplacebo.sh
 
       - name: Build FFmpeg from source
         shell: msys2 {0}

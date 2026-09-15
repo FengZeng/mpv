@@ -13,6 +13,7 @@ case "$BUILD_MACHINE" in
 esac
 FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-linux-$FFMPEG_BUILD_ARCH}"
 FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+LOCAL_INSTALL_PREFIX="$PROJECT_ROOT/install"
 
 if [ ! -d "$MPV_DIR" ]; then
     echo "Missing mpv source: $MPV_DIR"
@@ -35,16 +36,26 @@ case "$BUILD_ARCH" in
         ;;
 esac
 
+PKG_CONFIG_DIRS=""
+LD_LIBRARY_DIRS=""
+if [ -d "$LOCAL_INSTALL_PREFIX/lib/pkgconfig" ]; then
+    PKG_CONFIG_DIRS="$LOCAL_INSTALL_PREFIX/lib/pkgconfig"
+    LD_LIBRARY_DIRS="$LOCAL_INSTALL_PREFIX/lib"
+fi
 if [ -d "$FFMPEG_PREFIX" ]; then
-    export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:${PKG_CONFIG_PATH:-}"
-    export LD_LIBRARY_PATH="$FFMPEG_PREFIX/lib:${LD_LIBRARY_PATH:-}"
-else
-    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    PKG_CONFIG_DIRS="${PKG_CONFIG_DIRS:+$PKG_CONFIG_DIRS:}$FFMPEG_PREFIX/lib/pkgconfig"
+    LD_LIBRARY_DIRS="${LD_LIBRARY_DIRS:+$LD_LIBRARY_DIRS:}$FFMPEG_PREFIX/lib"
+fi
+PKG_CONFIG_DIRS="${PKG_CONFIG_DIRS:+$PKG_CONFIG_DIRS:}/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig"
+export PKG_CONFIG_PATH="$PKG_CONFIG_DIRS:${PKG_CONFIG_PATH:-}"
+if [ -n "$LD_LIBRARY_DIRS" ]; then
+    export LD_LIBRARY_PATH="$LD_LIBRARY_DIRS:${LD_LIBRARY_PATH:-}"
 fi
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$PROJECT_ROOT/.cache}"
 mkdir -p "$XDG_CACHE_HOME"
 
 echo "Building with FFMPEG_PREFIX=$FFMPEG_PREFIX (exists: $([ -d "$FFMPEG_PREFIX" ] && echo yes || echo no))"
+echo "Using LOCAL_INSTALL_PREFIX=$LOCAL_INSTALL_PREFIX (exists: $([ -d "$LOCAL_INSTALL_PREFIX" ] && echo yes || echo no))"
 echo "Using PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
 
 cd "$MPV_DIR"

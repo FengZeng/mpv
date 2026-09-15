@@ -9,6 +9,7 @@ BUILD_DIR="$MPV_DIR/buildout"
 MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"
 FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-$(basename "$MINGW_PREFIX")}"
 FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+LOCAL_INSTALL_PREFIX="$PROJECT_ROOT/install"
 
 if [ ! -d "$MPV_DIR" ]; then
     echo "Missing mpv source: $MPV_DIR"
@@ -24,13 +25,14 @@ fi
 
 export PATH="$MINGW_PREFIX/bin:$PATH"
 export PKG_CONFIG="$MINGW_PREFIX/bin/pkg-config"
+LOCAL_PKG_CONFIG_DIR="$LOCAL_INSTALL_PREFIX/lib/pkgconfig"
 if [ -d "$FFMPEG_PREFIX" ]; then
     export PATH="$FFMPEG_PREFIX/bin:$PATH"
-    export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
-    export PKG_CONFIG_LIBDIR="$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+    export PKG_CONFIG_PATH="$LOCAL_PKG_CONFIG_DIR:$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export PKG_CONFIG_LIBDIR="$LOCAL_PKG_CONFIG_DIR:$FFMPEG_PREFIX/lib/pkgconfig:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
 else
-    export PKG_CONFIG_PATH="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
-    export PKG_CONFIG_LIBDIR="$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
+    export PKG_CONFIG_PATH="$LOCAL_PKG_CONFIG_DIR:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export PKG_CONFIG_LIBDIR="$LOCAL_PKG_CONFIG_DIR:$MINGW_PREFIX/lib/pkgconfig:$MINGW_PREFIX/share/pkgconfig"
 fi
 
 if ! command -v meson >/dev/null 2>&1; then

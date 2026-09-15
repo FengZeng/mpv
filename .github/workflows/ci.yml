@@ -107,6 +107,9 @@ jobs:
       - name: Download mpv source code
         run: bash ./download.sh
 
+      - name: Build libplacebo from source
+        run: bash ./build-libplacebo.sh
+
       - name: Build mpv library
         run: bash ./build-macos.sh
 
@@ -168,7 +171,7 @@ jobs:
             libxss-dev \
             libwayland-dev wayland-protocols libxkbcommon-dev \
             libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
-            libzimg-dev libplacebo-dev libvulkan-dev
+            libzimg-dev libvulkan-dev libshaderc-dev
 
       - name: Install Meson
         run: |
@@ -186,6 +189,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libplacebo from source
+        run: bash ./build-libplacebo.sh
 
       - name: Build FFmpeg from source
         run: bash ./build-ffmpeg.sh

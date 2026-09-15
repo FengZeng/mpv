@@ -89,3 +89,19 @@ patch -d vendor/mpv -p1 -N < patches/mpv/0001-ao_coreaudio-fix-init-failure-on-m
 echo "$MPV_VERSION" > "$VERSION_FILE"
 rm -f "$TARBALL"
 echo "Done: $MPV_DIR"
+
+
+# libplacebo
+LIBPLACEBO_REPO="https://github.com/haasn/libplacebo.git"
+LIBPLACEBO_REF="v7.360.1"
+LIBPLACEBO_DIR="$VENDOR_DIR/libplacebo"
+rm -rf "$LIBPLACEBO_DIR"
+echo "Downloading libplacebo ${LIBPLACEBO_REF}..."
+git clone \
+    --branch "$LIBPLACEBO_REF" \
+    --depth 1 \
+    --recurse-submodules \
+    --shallow-submodules \
+    "$LIBPLACEBO_REPO" \
+    "$LIBPLACEBO_DIR"
+echo "Done: $LIBPLACEBO_DIR"
