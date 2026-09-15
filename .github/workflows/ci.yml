@@ -1,11 +1,8 @@
 name: Build libmpv
 
 on:
-  pull_request:
   push:
-    branches: [main, vcpkg]
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
