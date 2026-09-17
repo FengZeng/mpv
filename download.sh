@@ -90,6 +90,17 @@ echo "$MPV_VERSION" > "$VERSION_FILE"
 rm -f "$TARBALL"
 echo "Done: $MPV_DIR"
 
+#libdovi
+LIBDOVI_VERSION="3.4.0"
+LIBDOVI_TARBALL="$VENDOR_DIR/libdovi-${LIBDOVI_VERSION}.tar.gz"
+LIBDOVI_DIR="$VENDOR_DIR/libdovi"
+LIBDOVI_SRC_URL="https://github.com/quietvoid/dovi_tool/archive/refs/tags/libdovi-${LIBDOVI_VERSION}.tar.gz"
+curl --fail --location --retry 3 --retry-delay 2 --output "$LIBDOVI_TARBALL" "$LIBDOVI_SRC_URL"
+rm -rf "$LIBDOVI_DIR"
+mkdir -p "$LIBDOVI_DIR"
+tar -zxf "$LIBDOVI_TARBALL" -C "$LIBDOVI_DIR" --strip-components=1
+rm -f "$LIBDOVI_TARBALL"
+echo "Done: $LIBDOVI_DIR"
 
 # libplacebo
 LIBPLACEBO_REPO="https://github.com/haasn/libplacebo.git"

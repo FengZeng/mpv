@@ -2,6 +2,12 @@
 
 set -euo pipefail
 
+BUILD_OS="$(uname -s)"
+
+if [ "$BUILD_OS" = "Darwin" ]; then
+    export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+fi
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENDOR_DIR="$PROJECT_ROOT/vendor"
 SOURCE_DIR="$VENDOR_DIR/libplacebo"
@@ -9,13 +15,6 @@ INSTALL_PREFIX="${LIBPLACEBO_PREFIX:-${LOCAL_INSTALL_PREFIX:-$PROJECT_ROOT/insta
 VCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET:-arm64-osx-mp}"
 VCPKG_INSTALL_PREFIX="$PROJECT_ROOT/vcpkg_installed/$VCPKG_TARGET_TRIPLET"
 JOBS="${LIBPLACEBO_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
-BUILD_OS="$(uname -s)"
-
-if [ -z "${MACOSX_DEPLOYMENT_TARGET:-}" ]; then
-    export MACOSX_DEPLOYMENT_TARGET="13.0"
-else
-    export MACOSX_DEPLOYMENT_TARGET
-fi
 
 if [[ "$BUILD_OS" == MINGW* || "$BUILD_OS" == MSYS* || "$BUILD_OS" == CYGWIN* ]]; then
     MINGW_PREFIX="${MINGW_PREFIX:-/mingw64}"

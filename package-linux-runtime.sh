@@ -17,6 +17,7 @@ case "$BUILD_MACHINE" in
 esac
 FFMPEG_BUILD_NAME="${FFMPEG_BUILD_NAME:-linux-$FFMPEG_BUILD_ARCH}"
 FFMPEG_PREFIX="${FFMPEG_PREFIX:-$PROJECT_ROOT/vendor/ffmpeg-build/$FFMPEG_BUILD_NAME}"
+LOCAL_INSTALL_PREFIX="${LOCAL_INSTALL_PREFIX:-$PROJECT_ROOT/install}"
 
 usage() {
   cat <<'USAGE'
@@ -177,6 +178,7 @@ resolve_dep() {
     "$owner_dir" \
     "$LIB_DIR" \
     "$BUILD_DIR" \
+    "$LOCAL_INSTALL_PREFIX/lib" \
     "$FFMPEG_PREFIX/lib" \
     "/usr/local/lib" \
     "/usr/lib/${arch_dir}" \

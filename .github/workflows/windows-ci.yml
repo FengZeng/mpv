@@ -60,6 +60,9 @@ jobs:
             mingw-w64-x86_64-libcdio-paranoia
             mingw-w64-x86_64-libdvdnav
             mingw-w64-x86_64-rubberband
+            mingw-w64-x86_64-libdovi
+            mingw-w64-x86_64-shaderc
+            mingw-w64-x86_64-libplacebo
             mingw-w64-x86_64-zimg
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-xz
@@ -83,9 +86,9 @@ jobs:
         shell: msys2 {0}
         run: bash ./download.sh
 
-      - name: Build libplacebo from source
-        shell: msys2 {0}
-        run: bash ./build-libplacebo.sh
+      # - name: Build libplacebo from source
+      #   shell: msys2 {0}
+      #   run: bash ./build-libplacebo.sh
 
       - name: Build FFmpeg from source
         shell: msys2 {0}
@@ -154,6 +157,9 @@ jobs:
             mingw-w64-clang-aarch64-libcdio-paranoia
             mingw-w64-clang-aarch64-libdvdnav
             mingw-w64-clang-aarch64-rubberband
+            mingw-w64-clang-aarch64-libdovi
+            mingw-w64-clang-aarch64-shaderc
+            mingw-w64-clang-aarch64-libplacebo
             mingw-w64-clang-aarch64-zimg
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-xz
@@ -173,9 +179,9 @@ jobs:
         shell: msys2 {0}
         run: bash ./download.sh
 
-      - name: Build libplacebo from source
-        shell: msys2 {0}
-        run: bash ./build-libplacebo.sh
+      # - name: Build libplacebo from source
+      #   shell: msys2 {0}
+      #   run: bash ./build-libplacebo.sh
 
       - name: Build FFmpeg from source
         shell: msys2 {0}

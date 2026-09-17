@@ -57,7 +57,7 @@ jobs:
           python3 --version
           python3 -m pip install --upgrade pip
           python3 -m pip install meson ninja
-          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm)
+          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm rust cargo-c)
           MISSING=()
           for f in "${FORMULAE[@]}"; do
             if ! brew list --formula "$f" >/dev/null 2>&1; then
@@ -103,6 +103,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
 
       - name: Build libplacebo from source
         run: bash ./build-libplacebo.sh
@@ -165,7 +168,7 @@ jobs:
           python3 --version
           python3 -m pip install --upgrade pip
           python3 -m pip install meson ninja
-          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm)
+          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm rust cargo-c)
           MISSING=()
           for f in "${FORMULAE[@]}"; do
             if ! brew list --formula "$f" >/dev/null 2>&1; then
@@ -211,6 +214,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
 
       - name: Build libplacebo from source
         run: bash ./build-libplacebo.sh

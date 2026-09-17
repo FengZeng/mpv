@@ -31,6 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-c
+        run: cargo install cargo-c --locked
+
       - name: Install apt dependencies
         run: |
           set -euo pipefail
@@ -62,6 +68,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
 
       - name: Build libplacebo from source
         run: bash ./build-libplacebo.sh
@@ -101,6 +110,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-c
+        run: cargo install cargo-c --locked
+
       - name: Install apt dependencies
         run: |
           set -euo pipefail
@@ -132,6 +147,9 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
 
       - name: Build libplacebo from source
         run: bash ./build-libplacebo.sh
