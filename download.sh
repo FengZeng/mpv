@@ -89,3 +89,30 @@ patch -d vendor/mpv -p1 -N < patches/mpv/0001-ao_coreaudio-fix-init-failure-on-m
 echo "$MPV_VERSION" > "$VERSION_FILE"
 rm -f "$TARBALL"
 echo "Done: $MPV_DIR"
+
+#libdovi
+LIBDOVI_VERSION="3.4.0"
+LIBDOVI_TARBALL="$VENDOR_DIR/libdovi-${LIBDOVI_VERSION}.tar.gz"
+LIBDOVI_DIR="$VENDOR_DIR/libdovi"
+LIBDOVI_SRC_URL="https://github.com/quietvoid/dovi_tool/archive/refs/tags/libdovi-${LIBDOVI_VERSION}.tar.gz"
+curl --fail --location --retry 3 --retry-delay 2 --output "$LIBDOVI_TARBALL" "$LIBDOVI_SRC_URL"
+rm -rf "$LIBDOVI_DIR"
+mkdir -p "$LIBDOVI_DIR"
+tar -zxf "$LIBDOVI_TARBALL" -C "$LIBDOVI_DIR" --strip-components=1
+rm -f "$LIBDOVI_TARBALL"
+echo "Done: $LIBDOVI_DIR"
+
+# libplacebo
+LIBPLACEBO_REPO="https://github.com/haasn/libplacebo.git"
+LIBPLACEBO_REF="v7.360.1"
+LIBPLACEBO_DIR="$VENDOR_DIR/libplacebo"
+rm -rf "$LIBPLACEBO_DIR"
+echo "Downloading libplacebo ${LIBPLACEBO_REF}..."
+git clone \
+    --branch "$LIBPLACEBO_REF" \
+    --depth 1 \
+    --recurse-submodules \
+    --shallow-submodules \
+    "$LIBPLACEBO_REPO" \
+    "$LIBPLACEBO_DIR"
+echo "Done: $LIBPLACEBO_DIR"

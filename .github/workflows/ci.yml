@@ -1,11 +1,8 @@
 name: Build libmpv
 
 on:
-  pull_request:
   push:
-    branches: [main, vcpkg]
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -60,7 +57,7 @@ jobs:
           python3 --version
           python3 -m pip install --upgrade pip
           python3 -m pip install meson ninja
-          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm)
+          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm rust cargo-c)
           MISSING=()
           for f in "${FORMULAE[@]}"; do
             if ! brew list --formula "$f" >/dev/null 2>&1; then
@@ -106,6 +103,12 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
+
+      - name: Build libplacebo from source
+        run: bash ./build-libplacebo.sh
 
       - name: Build mpv library
         run: bash ./build-macos.sh
@@ -155,6 +158,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-c
+        run: cargo install cargo-c --locked
+
       - name: Install apt dependencies
         run: |
           set -euo pipefail
@@ -168,7 +177,7 @@ jobs:
             libxss-dev \
             libwayland-dev wayland-protocols libxkbcommon-dev \
             libarchive-dev libbluray-dev libcdio-paranoia-dev libdvdnav-dev \
-            libzimg-dev libplacebo-dev libvulkan-dev
+            libzimg-dev libvulkan-dev libshaderc-dev
 
       - name: Install Meson
         run: |
@@ -186,6 +195,12 @@ jobs:
 
       - name: Download mpv source code
         run: bash ./download.sh
+
+      - name: Build libdovi from source
+        run: bash ./build-libdovi.sh
+
+      - name: Build libplacebo from source
+        run: bash ./build-libplacebo.sh
 
       - name: Build FFmpeg from source
         run: bash ./build-ffmpeg.sh
@@ -275,6 +290,8 @@ jobs:
             ${{ matrix.pkg_prefix }}-luajit
             ${{ matrix.pkg_prefix }}-opus
             ${{ matrix.pkg_prefix }}-uchardet
+            ${{ matrix.pkg_prefix }}-libdovi
+            ${{ matrix.pkg_prefix }}-shaderc
             ${{ matrix.pkg_prefix }}-libplacebo
             ${{ matrix.pkg_prefix }}-libbluray
             ${{ matrix.pkg_prefix }}-libcdio-paranoia

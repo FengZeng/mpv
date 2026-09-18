@@ -5,3 +5,4 @@ release
 *.tar.gz.sha256
 vcpkg
 vcpkg_installed
+install
