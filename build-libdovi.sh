@@ -3,6 +3,15 @@
 set -euo pipefail
 
 BUILD_OS="$(uname -s)"
+HOST_ARCH="$(uname -m)"
+MPV_TARGET_ARCH="${MPV_TARGET_ARCH:-$HOST_ARCH}"
+case "$MPV_TARGET_ARCH" in
+    aarch64|arm64|x86_64) ;;
+    *)
+        echo "Unsupported MPV_TARGET_ARCH: $MPV_TARGET_ARCH" >&2
+        exit 1
+        ;;
+esac
 
 if [ "$BUILD_OS" = "Darwin" ]; then
     export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
@@ -14,6 +23,13 @@ INSTALL_PREFIX="${LIBDOVI_PREFIX:-${LOCAL_INSTALL_PREFIX:-$PROJECT_ROOT/install}
 LIBDOVI_LIBDIR="${LIBDOVI_LIBDIR:-lib}"
 LIBDOVI_JOBS="${LIBDOVI_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 LIBDOVI_TARGET="${LIBDOVI_TARGET:-}"
+
+if [ "$BUILD_OS" = "Darwin" ]; then
+    case "$MPV_TARGET_ARCH" in
+        arm64)  LIBDOVI_TARGET="aarch64-apple-darwin" ;;
+        x86_64) LIBDOVI_TARGET="x86_64-apple-darwin" ;;
+    esac
+fi
 
 for tool in cargo cargo-cinstall; do
     if ! command -v "$tool" >/dev/null 2>&1; then

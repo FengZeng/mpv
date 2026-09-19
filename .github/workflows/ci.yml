@@ -57,7 +57,7 @@ jobs:
           python3 --version
           python3 -m pip install --upgrade pip
           python3 -m pip install meson ninja
-          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm rust cargo-c)
+          FORMULAE=(pkgconf autoconf autoconf-archive automake libtool nasm cargo-c)
           MISSING=()
           for f in "${FORMULAE[@]}"; do
             if ! brew list --formula "$f" >/dev/null 2>&1; then
@@ -68,6 +68,16 @@ jobs:
             brew update
             brew install -q "${MISSING[@]}"
           fi
+          rustup target add x86_64-apple-darwin
+
+          echo "=== Rust Env==="
+          which rustup
+          which rustc
+          which cargo
+          rustup show
+          rustup target list --installed
+          rustc -vV
+          cargo -V
 
       - name: Preflight tool checks
         run: |

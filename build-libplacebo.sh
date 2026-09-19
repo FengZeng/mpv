@@ -6,7 +6,7 @@ BUILD_OS="$(uname -s)"
 HOST_ARCH="$(uname -m)"
 MPV_TARGET_ARCH="${MPV_TARGET_ARCH:-$HOST_ARCH}"
 case "$MPV_TARGET_ARCH" in
-    arm64|x86_64) ;;
+    aarch64|arm64|x86_64) ;;
     *)
         echo "Unsupported MPV_TARGET_ARCH: $MPV_TARGET_ARCH" >&2
         exit 1
@@ -45,6 +45,13 @@ export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$VCPKG_INSTALL_PREFIX/lib/
 MESON_CROSS_ARGS=()
 if [ "$BUILD_OS" = "Darwin" ]; then
     export XDG_CACHE_HOME="$PROJECT_ROOT/.cache"
+    MIN_OS_FLAG="-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+    ARCH_FLAG="-arch ${MPV_TARGET_ARCH}"
+    export CFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${CFLAGS:-}"
+    export CXXFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${CXXFLAGS:-}"
+    export OBJCFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${OBJCFLAGS:-}"
+    export OBJCXXFLAGS="$ARCH_FLAG $MIN_OS_FLAG ${OBJCXXFLAGS:-}"
+    export LDFLAGS=" $ARCH_FLAG $MIN_OS_FLAG ${LDFLAGS:-}"
     mkdir -p "$XDG_CACHE_HOME"
     if [ "$MPV_TARGET_ARCH" != "$HOST_ARCH" ]; then
         case "$MPV_TARGET_ARCH" in

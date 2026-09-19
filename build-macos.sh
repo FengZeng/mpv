@@ -26,7 +26,7 @@ fi
 HOST_ARCH="$(uname -m)"
 MPV_TARGET_ARCH="${MPV_TARGET_ARCH:-$HOST_ARCH}"
 case "$MPV_TARGET_ARCH" in
-    arm64|x86_64) ;;
+    aarch64|arm64|x86_64) ;;
     *)
         echo "Unsupported MPV_TARGET_ARCH: $MPV_TARGET_ARCH" >&2
         exit 1
